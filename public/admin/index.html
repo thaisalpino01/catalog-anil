@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Painel Anil</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=Montserrat:wght@200;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+  <div id="login" class="login" hidden>
+    <form class="login__card" id="loginForm">
+      <img src="/media/logo-anil.webp" alt="Anil Piscinas e Spas" width="150">
+      <h1>Painel de orçamentos</h1>
+      <label>Usuário<input class="input" name="user" autocomplete="username" required></label>
+      <label>Senha<input class="input" name="password" type="password" autocomplete="current-password" required></label>
+      <div class="error" id="loginError"></div>
+      <button class="btn btn--primary" type="submit">Entrar</button>
+    </form>
+  </div>
+
+  <div id="shell" class="shell" hidden>
+    <aside class="side">
+      <img class="side__logo" src="/media/logo-anil.webp" alt="Anil">
+      <nav class="side__nav">
+        <a href="#/" data-nav="orcamentos">Orçamentos</a>
+        <a href="#/produtos" data-nav="produtos">Produtos</a>
+        <a href="#/categorias" data-nav="categorias">Categorias</a>
+        <a href="#/opcionais" data-nav="opcionais">Opcionais</a>
+        <a href="#/vendedoras" data-nav="vendedoras">Vendedoras e links</a>
+      </nav>
+      <div class="side__foot">
+        <a href="/" target="_blank" rel="noopener">Abrir catálogo</a>
+        <button type="button" id="logout">Sair</button>
+      </div>
+    </aside>
+    <main class="main" id="view"></main>
+  </div>
+
+  <dialog class="modal" id="modal"><div id="modalBody"></div></dialog>
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="/admin/admin.js" type="module"></script>
+</body>
+</html>

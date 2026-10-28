@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Catálogo Anil Piscinas e Spas</title>
+  <meta name="description" content="Monte seu orçamento: escolha piscinas, spas e banheiras da Anil e envie direto para a nossa equipe.">
+  <meta name="theme-color" content="#001157">
+  <meta property="og:title" content="Catálogo Anil Piscinas e Spas">
+  <meta property="og:description" content="Escolha seu modelo e receba o orçamento da nossa equipe.">
+  <meta property="og:image" content="/media/mgp-01750-2.jpg">
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,500&family=Hanken+Grotesk:wght@400;500;600;700&family=Montserrat:wght@200;300;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__inner">
+      <img class="topbar__logo" src="/media/logo-anil.webp" alt="Anil Piscinas e Spas" width="120" height="58">
+      <ol class="steps" id="steps" aria-label="Etapas">
+        <li data-step="1"><span>1</span><em>Seus dados</em></li>
+        <li data-step="2"><span>2</span><em>Produto</em></li>
+        <li data-step="3"><span>3</span><em>Modelos</em></li>
+        <li data-step="4"><span>4</span><em>Detalhes</em></li>
+        <li data-step="5"><span>5</span><em>Enviar</em></li>
+      </ol>
+    </div>
+    <div class="progress"><div class="progress__bar" id="progressBar"></div></div>
+  </header>
+
+  <main id="app" aria-live="polite">
+    <div class="loading" id="loading"><div class="ripple"></div></div>
+  </main>
+
+  <div class="tray" id="tray" hidden>
+    <div class="tray__inner">
+      <div class="tray__thumbs" id="trayThumbs"></div>
+      <div class="tray__text"><strong id="trayCount">0</strong> <span id="trayLabel">modelos escolhidos</span></div>
+      <button class="btn btn--primary" id="trayNext" type="button">Continuar</button>
+    </div>
+  </div>
+
+  <dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+    <div class="sheet__body" id="sheetBody"></div>
+  </dialog>
+
+  <footer class="foot">
+    <svg class="foot__wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 40c160-40 320-40 480 0s320 40 480 0 320-40 480 0v40H0z"/></svg>
+    <div class="foot__inner">
+      <p>Anil Piscinas e Spas · Fábrica em Divinópolis, MG · Mais de 35 anos</p>
+      <p class="foot__small">Imagens ilustrativas. Entregas somente em Minas Gerais.</p>
+    </div>
+  </footer>
+
+  <script src="/assets/app.js" type="module"></script>
+</body>
+</html>

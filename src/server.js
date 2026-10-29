@@ -6,14 +6,15 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { all, get, run, tx } from "./db.js";
-import { seedIfEmpty } from "./seed.js";
+import { seedIfEmpty, backfillPricesOnce } from "./seed.js";
 import { checkCredentials, issueSession, clearSession, isAuthenticated, requireAdmin } from "./auth.js";
 import {
   createSubmission, getSubmission, notifyWebhook, sellerFor, whatsappMessage, whatsappLink,
-  summaryText, normalizePhone, SERVICES, STATUSES,
+  summaryText, normalizePhone, DELIVERY, SERVICES, SERVICE_LABELS, STATUSES,
 } from "./submissions.js";
 
 seedIfEmpty();
+backfillPricesOnce();
 
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const app = express();
@@ -54,11 +55,11 @@ function publicCatalog() {
   const categories = all("SELECT slug, name, tagline, description, cover, specs FROM categories WHERE active = 1 ORDER BY sort, name");
   const slugs = new Set(categories.map((c) => c.slug));
   const products = all(
-    `SELECT code, category, name, subtitle, length, width, depth, people, highlights, images, plan, colors
+    `SELECT code, category, name, subtitle, length, width, depth, people, highlights, images, plan, colors, price
      FROM products WHERE active = 1 ORDER BY sort, length, name`,
   ).filter((p) => slugs.has(p.category));
-  const equipment = all("SELECT slug, name, description, image, categories FROM equipment WHERE active = 1 ORDER BY sort, name");
-  return { categories, products, equipment, services: SERVICES };
+  const equipment = all("SELECT slug, name, description, image, categories, price FROM equipment WHERE active = 1 ORDER BY sort, name");
+  return { categories, products, equipment, delivery: DELIVERY, services: SERVICES };
 }
 
 app.get("/api/catalog", (req, res) => {
@@ -69,15 +70,16 @@ app.get("/api/catalog", (req, res) => {
 });
 
 app.post("/api/orcamentos", rateLimit({ windowMs: 10 * 60 * 1000, max: 15 }), asyncRoute(async (req, res) => {
-  // honeypot anti-robô: campo invisível no formulário
-  if (req.body.website) return res.status(400).json({ error: "Requisição inválida" });
   const sub = createSubmission(req.body || {}, { ip: req.ip });
   notifyWebhook(sub).catch(() => {});
   const seller = sellerFor(sub);
+  const message = whatsappMessage(sub);
   res.status(201).json({
     code: sub.code,
     seller: seller.name || null,
-    whatsapp_url: whatsappLink(seller.whatsapp, whatsappMessage(sub)),
+    total: sub.total,
+    message,
+    whatsapp_url: whatsappLink(seller.whatsapp, message),
   });
 }));
 
@@ -141,12 +143,13 @@ admin.get("/orcamentos.csv", (req, res) => {
   const { sql, params } = querySubmissions(req.query);
   const rows = all(`SELECT * FROM submissions ${sql} ORDER BY created_at DESC`, ...params);
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const header = ["codigo", "data", "cidade_entrega", "modelos", "opcionais", "servicos", "observacoes", "vendedora", "status"];
+  const header = ["codigo", "data", "cidade", "entrega", "modelos", "opcionais", "servicos", "valor_aproximado", "observacoes", "vendedora", "status"];
   const lines = rows.map((s) => [
-    s.code, s.created_at, s.city,
-    s.items.map((i) => `${i.name}${i.color ? ` (${i.color})` : ""}`).join("; "),
+    s.code, s.created_at, s.city, DELIVERY[s.delivery] || "",
+    s.items.map((i) => `${i.code}${i.name !== i.code ? ` ${i.name}` : ""}${i.color ? ` (${i.color})` : ""}`).join("; "),
     s.equipment.map((e) => e.name).join("; "),
-    s.services.map((x) => SERVICES[x] || x).join("; "),
+    s.services.map((x) => SERVICE_LABELS[x] || x).join("; "),
+    s.total != null ? String(s.total).replace(".", ",") : "",
     s.notes, s.seller, s.status,
   ].map(esc).join(";"));
   res.set({ "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="orcamentos-anil.csv"` });
@@ -219,7 +222,7 @@ function productValues(b) {
   return [
     String(b.code || "").trim().toUpperCase(), b.category, String(b.name || "").trim(), b.subtitle || "",
     num(b.length), num(b.width), b.depth || "", num(b.people),
-    arr(b.highlights), arr(b.images), b.plan || "", arr(b.colors), num(b.sort) ?? 0, bool(b.active),
+    arr(b.highlights), arr(b.images), b.plan || "", arr(b.colors), num(b.price), num(b.sort) ?? 0, bool(b.active),
   ];
 }
 function validateProduct(b) {
@@ -233,8 +236,8 @@ admin.post("/produtos", (req, res) => {
   const err = validateProduct(b);
   if (err) return res.status(400).json({ error: err });
   try {
-    const r = run(`INSERT INTO products (code, category, name, subtitle, length, width, depth, people, highlights, images, plan, colors, sort, active)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ...productValues(b));
+    const r = run(`INSERT INTO products (code, category, name, subtitle, length, width, depth, people, highlights, images, plan, colors, price, sort, active)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ...productValues(b));
     res.status(201).json(get("SELECT * FROM products WHERE id = ?", r.lastInsertRowid));
   } catch (e) {
     if (String(e.message).includes("UNIQUE")) return res.status(409).json({ error: "Já existe um produto com esse código" });
@@ -248,7 +251,7 @@ admin.put("/produtos/:id", (req, res) => {
   if (err) return res.status(400).json({ error: err });
   if (!get("SELECT 1 AS x FROM products WHERE id = ?", req.params.id)) return res.status(404).json({ error: "Produto não encontrado" });
   try {
-    run(`UPDATE products SET code=?, category=?, name=?, subtitle=?, length=?, width=?, depth=?, people=?, highlights=?, images=?, plan=?, colors=?, sort=?, active=?
+    run(`UPDATE products SET code=?, category=?, name=?, subtitle=?, length=?, width=?, depth=?, people=?, highlights=?, images=?, plan=?, colors=?, price=?, sort=?, active=?
       WHERE id=?`, ...productValues(b), req.params.id);
   } catch (e) {
     if (String(e.message).includes("UNIQUE")) return res.status(409).json({ error: "Já existe um produto com esse código" });
@@ -267,15 +270,15 @@ admin.post("/opcionais", (req, res) => {
   const slug = slugify(b.slug || b.name);
   if (!slug || !b.name) return res.status(400).json({ error: "Nome obrigatório" });
   if (get("SELECT 1 AS x FROM equipment WHERE slug = ?", slug)) return res.status(409).json({ error: "Já existe um opcional com esse identificador" });
-  run("INSERT INTO equipment (slug, name, description, image, categories, sort, active) VALUES (?,?,?,?,?,?,?)",
-    slug, b.name, b.description || "", b.image || "", arr(b.categories), num(b.sort) ?? 99, bool(b.active));
+  run("INSERT INTO equipment (slug, name, description, image, categories, price, sort, active) VALUES (?,?,?,?,?,?,?,?)",
+    slug, b.name, b.description || "", b.image || "", arr(b.categories), num(b.price), num(b.sort) ?? 99, bool(b.active));
   res.status(201).json(get("SELECT * FROM equipment WHERE slug = ?", slug));
 });
 
 admin.put("/opcionais/:slug", (req, res) => {
   const b = req.body || {};
-  run("UPDATE equipment SET name=?, description=?, image=?, categories=?, sort=?, active=? WHERE slug=?",
-    b.name, b.description || "", b.image || "", arr(b.categories), num(b.sort) ?? 0, bool(b.active), req.params.slug);
+  run("UPDATE equipment SET name=?, description=?, image=?, categories=?, price=?, sort=?, active=? WHERE slug=?",
+    b.name, b.description || "", b.image || "", arr(b.categories), num(b.price), num(b.sort) ?? 0, bool(b.active), req.params.slug);
   res.json(get("SELECT * FROM equipment WHERE slug = ?", req.params.slug));
 });
 
@@ -326,7 +329,8 @@ admin.post("/upload", upload.array("files", 10), (req, res) => {
 app.use("/api/admin", admin);
 
 /* ---------- arquivos estáticos ---------- */
-app.use(express.static(publicDir, { maxAge: "1h", index: false }));
+// sempre revalida (ETag): depois de um deploy ninguém fica com JS antigo falando com a API nova
+app.use(express.static(publicDir, { index: false, setHeaders: (res) => res.set("Cache-Control", "no-cache") }));
 app.get(["/admin", "/admin/"], (req, res) => res.sendFile(path.join(publicDir, "admin/index.html")));
 app.get("/", (req, res) => res.sendFile(path.join(publicDir, "index.html")));
 

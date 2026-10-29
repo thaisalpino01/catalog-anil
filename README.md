@@ -3,16 +3,18 @@
 Link que o pré-atendimento da Anil Piscinas e Spas envia ao cliente. O link **não pede dados pessoais** — só modelo e cidade de entrega. O cliente:
 
 1. Escolhe o que procura (**Piscinas, Linha Infantil, Spas, Banheiras**);
-2. Vê **somente os modelos** das categorias marcadas, com fotos, planta, medidas, ficha técnica e cor;
-3. Informa a **cidade de entrega** (obrigatória) e, se quiser, serviços, equipamentos e observações;
-4. Envia e recebe um **código de atendimento** (ex.: `ANL-7K3PQ`), com botão para mandar o código e os modelos no **WhatsApp da vendedora**.
+2. Vê **somente os modelos** das categorias marcadas e escolhe **um modelo por tipo**, com fotos, planta, medidas, ficha técnica e cor;
+3. Escolhe o **tipo de entrega** (entrega no endereço ou retirada na fábrica) e informa a **cidade** (ambos obrigatórios); serviços, equipamentos e observações são opcionais;
+4. Vê a **prévia do orçamento com valor aproximado** e recebe um código (ex.: `ANL-7K3PQ`), com botão que envia o **resumo completo no WhatsApp** (código do orçamento, cidade, entrega, itens com o código de cada modelo e valor).
+
+O valor aproximado soma os preços de tabela cadastrados no painel (produtos e opcionais "a partir de"). Item sem preço aparece como "sob consulta"; frete e instalação ficam "a combinar".
 
 O telefone e o nome chegam para a vendedora pela própria conversa do WhatsApp. Ela abre o painel `/admin`, busca pelo código e já entra na fase de venda.
 
 ## Painel `/admin`
 
 - **Orçamentos**: busca por código, cidade ou modelo; status (novo, em atendimento, convertido, perdido); anotações internas; exportação CSV.
-- **Produtos / Categorias / Opcionais**: editar textos, medidas, fotos (upload), planta, cores, ordem e visibilidade.
+- **Produtos / Categorias / Opcionais**: editar preços, textos, medidas, fotos (upload), planta, cores, ordem e visibilidade.
 - **Vendedoras e links**: cada vendedora tem um link próprio (`/?v=ana`). O cliente que entra por ele envia o código direto para o WhatsApp dela. Sem `?v=`, vai para `WHATSAPP_PADRAO`.
 
 ## Integração com n8n (opcional)

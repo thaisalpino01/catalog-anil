@@ -29,6 +29,7 @@ const blank = () => ({
   filters: {},
   equipment: [],
   services: [],
+  delivery: "",
   city: "",
   notes: "",
   result: null,
@@ -56,6 +57,19 @@ const catOf = (slug) => catalog.categories.find((c) => c.slug === slug);
 const pickedCodes = () => Object.keys(state.picks).filter((c) => byCode(c));
 
 const cityOk = (v) => String(v || "").trim().length >= 2;
+
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const money = (v) => (v == null ? "sob consulta" : BRL.format(v));
+
+/** Itens escolhidos com preço, na mesma regra do servidor: soma só o que tem valor. */
+function estimate() {
+  const items = pickedCodes().map((c) => byCode(c));
+  const eqs = catalog.equipment.filter((e) => state.equipment.includes(e.slug));
+  const priced = [...items, ...eqs].filter((x) => x.price != null);
+  const total = priced.length ? priced.reduce((t, x) => t + x.price, 0) : null;
+  const unpriced = [...items, ...eqs].length - priced.length;
+  return { items, eqs, total, unpriced };
+}
 
 function specsOf(p) {
   const out = [];
@@ -188,11 +202,11 @@ function viewProducts() {
     <section class="panel">
       <div class="panel__head">
         <div class="panel__eyebrow">Etapa 2 de 4</div>
-        <h2 class="panel__title">Escolha os <i>seus favoritos</i></h2>
-        <p class="panel__lead">Toque na foto para ver detalhes, planta e cores. Marque quantos modelos quiser.</p>
+        <h2 class="panel__title">Escolha o <i>seu favorito</i></h2>
+        <p class="panel__lead">Toque na foto para ver detalhes, planta e cores. Escolha o modelo que você mais gostou${state.categories.length > 1 ? " em cada tipo" : ""}.</p>
       </div>
       ${state.categories.length > 1 ? `<div class="tabs" role="tablist">
-        ${state.categories.map((s) => `<button class="tab ${s === tab ? "is-active" : ""}" role="tab" aria-selected="${s === tab}" data-tab="${esc(s)}">${esc(catOf(s)?.name)}${countIn(s) ? `<small>· ${countIn(s)}</small>` : ""}</button>`).join("")}
+        ${state.categories.map((s) => `<button class="tab ${s === tab ? "is-active" : ""}" role="tab" aria-selected="${s === tab}" data-tab="${esc(s)}">${tabLabel(s, countIn(s))}</button>`).join("")}
       </div>` : ""}
       ${chips.length ? `<div class="chips">
         <button class="chip ${!active ? "is-active" : ""}" data-chip="">Todos (${all.length})</button>
@@ -236,29 +250,41 @@ function productCard(p) {
         <div class="specs">${specsOf(p)}</div>
         <div class="prod__foot">
           <button class="btn btn--details" type="button">Detalhes</button>
-          <button class="btn btn--select" type="button">${sel ? `${ICON.check} Escolhido` : "Quero este"}</button>
+          <button class="btn btn--select" type="button">${sel ? `${ICON.check} Escolhido` : "Escolher este"}</button>
         </div>
       </div>
     </article>`;
 }
 
+const tabLabel = (slug, n) => `${esc(catOf(slug)?.name)}${n ? ` <small>${ICON.check}</small>` : ""}`;
+
+function refreshCard(code) {
+  const el = app.querySelector(`.prod[data-code="${CSS.escape(code)}"]`);
+  if (!el) return;
+  el.outerHTML = productCard(byCode(code));
+  const fresh = app.querySelector(`.prod[data-code="${CSS.escape(code)}"]`);
+  fresh.style.animation = "none";
+  fresh.querySelector(".prod__media").addEventListener("click", () => openSheet(code));
+  fresh.querySelector(".btn--details").addEventListener("click", () => openSheet(code));
+  fresh.querySelector(".btn--select").addEventListener("click", () => togglePick(code));
+}
+
+/** Um modelo por categoria: escolher outro substitui o anterior do mesmo tipo. */
 function togglePick(code, color) {
   const p = byCode(code);
+  const replaced = [];
   if (code in state.picks && color === undefined) delete state.picks[code];
-  else state.picks[code] = color ?? state.picks[code] ?? p.colors[0] ?? "";
-  save();
-  const el = app.querySelector(`.prod[data-code="${CSS.escape(code)}"]`);
-  if (el) el.outerHTML = productCard(p);
-  const fresh = app.querySelector(`.prod[data-code="${CSS.escape(code)}"]`);
-  if (fresh) {
-    fresh.style.animation = "none";
-    fresh.querySelector(".prod__media").addEventListener("click", () => openSheet(code));
-    fresh.querySelector(".btn--details").addEventListener("click", () => openSheet(code));
-    fresh.querySelector(".btn--select").addEventListener("click", () => togglePick(code));
+  else {
+    for (const other of Object.keys(state.picks)) {
+      if (other !== code && byCode(other)?.category === p.category) { delete state.picks[other]; replaced.push(other); }
+    }
+    state.picks[code] = color ?? state.picks[code] ?? p.colors[0] ?? "";
   }
+  save();
+  [code, ...replaced].forEach(refreshCard);
   app.querySelectorAll("[data-tab]").forEach((b) => {
     const n = pickedCodes().filter((c) => byCode(c).category === b.dataset.tab).length;
-    b.innerHTML = `${esc(catOf(b.dataset.tab)?.name)}${n ? `<small>· ${n}</small>` : ""}`;
+    b.innerHTML = tabLabel(b.dataset.tab, n);
   });
   renderTray();
 }
@@ -331,7 +357,7 @@ function openSheet(code) {
 }
 sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
 
-/* ---------- etapa 3: cidade e opcionais ---------- */
+/* ---------- etapa 3: entrega e opcionais ---------- */
 function viewDetails() {
   const eqs = catalog.equipment.filter((e) => !e.categories.length || e.categories.some((c) => state.categories.includes(c)));
   state.equipment = state.equipment.filter((s) => eqs.some((e) => e.slug === s));
@@ -339,20 +365,32 @@ function viewDetails() {
     <section class="panel">
       <div class="panel__head">
         <div class="panel__eyebrow">Etapa 3 de 4</div>
-        <h2 class="panel__title">Onde vai ser <i>a entrega?</i></h2>
+        <h2 class="panel__title">Como você prefere <i>receber?</i></h2>
         <p class="panel__lead">Entregamos em todo o estado de Minas Gerais.</p>
       </div>
       <div class="card">
-        <div class="form-grid form-grid--2">
+        <div class="form-grid">
           <div class="field">
-            <label for="city">Cidade de entrega</label>
-            <input class="input" id="city" placeholder="Ex.: Divinópolis" value="${esc(state.city)}" maxlength="80" autocomplete="address-level2" required>
-            <div class="field__error" id="cityError"></div>
+            <label>Tipo de entrega</label>
+            <div class="choices" role="radiogroup">
+              ${Object.entries(catalog.delivery).map(([k, v]) => `
+                <button type="button" class="choice ${state.delivery === k ? "is-selected" : ""}" role="radio" aria-checked="${state.delivery === k}" data-delivery="${k}">
+                  <span class="choice__dot"></span>${esc(v)}
+                </button>`).join("")}
+            </div>
+            <div class="field__error" id="deliveryError"></div>
           </div>
-          <div class="field">
-            <label>Você vai precisar de <small>(opcional)</small></label>
-            <div class="toggles">
-              ${Object.entries(catalog.services).map(([k, v]) => `<button type="button" class="toggle ${state.services.includes(k) ? "is-selected" : ""}" data-svc="${k}"><span class="tick">${ICON.check}</span>${esc(v)}</button>`).join("")}
+          <div class="form-grid form-grid--2">
+            <div class="field">
+              <label for="city">Sua cidade</label>
+              <input class="input" id="city" placeholder="Ex.: Divinópolis" value="${esc(state.city)}" maxlength="80" autocomplete="address-level2" required>
+              <div class="field__error" id="cityError"></div>
+            </div>
+            <div class="field">
+              <label>Também precisa de <small>(opcional)</small></label>
+              <div class="toggles">
+                ${Object.entries(catalog.services).map(([k, v]) => `<button type="button" class="toggle ${state.services.includes(k) ? "is-selected" : ""}" data-svc="${k}"><span class="tick">${ICON.check}</span>${esc(v)}</button>`).join("")}
+              </div>
             </div>
           </div>
         </div>
@@ -379,10 +417,20 @@ function viewDetails() {
       </div>
       <div class="actions">
         <button class="btn btn--ghost" type="button" data-back>${ICON.back} Voltar</button>
-        <button class="btn btn--primary" type="button" id="next">Revisar pedido ${ICON.arrow}</button>
+        <button class="btn btn--primary" type="button" id="next">Ver prévia do orçamento ${ICON.arrow}</button>
       </div>
     </section>`;
 
+  const deliveryError = document.getElementById("deliveryError");
+  app.querySelectorAll("[data-delivery]").forEach((b) => b.addEventListener("click", () => {
+    state.delivery = b.dataset.delivery;
+    save();
+    app.querySelectorAll("[data-delivery]").forEach((x) => {
+      x.classList.toggle("is-selected", x === b);
+      x.setAttribute("aria-checked", x === b);
+    });
+    deliveryError.textContent = "";
+  }));
   app.querySelectorAll("[data-eq]").forEach((b) => b.addEventListener("click", () => {
     const s = b.dataset.eq;
     state.equipment = state.equipment.includes(s) ? state.equipment.filter((x) => x !== s) : [...state.equipment, s];
@@ -404,53 +452,76 @@ function viewDetails() {
     if (cityOk(city.value)) { city.classList.remove("is-invalid"); cityError.textContent = ""; }
   });
   notes.addEventListener("input", () => { state.notes = notes.value; save(); });
-  if (!state.city) setTimeout(() => city.focus({ preventScroll: true }), 400);
   app.querySelector("[data-back]").addEventListener("click", () => goTo(2));
   document.getElementById("next").addEventListener("click", () => {
+    let firstError = null;
+    if (!(state.delivery in catalog.delivery)) {
+      deliveryError.textContent = "Escolha como prefere receber";
+      firstError = app.querySelector("[data-delivery]");
+    }
     if (!cityOk(city.value)) {
       city.classList.add("is-invalid");
-      cityError.textContent = "Informe a cidade de entrega";
-      city.scrollIntoView({ behavior: "smooth", block: "center" });
-      return city.focus({ preventScroll: true });
+      cityError.textContent = "Informe a sua cidade";
+      firstError = firstError || city;
+    }
+    if (firstError) {
+      firstError.scrollIntoView({ behavior: "smooth", block: "center" });
+      return firstError.focus({ preventScroll: true });
     }
     state.city = city.value.replace(/\s+/g, " ").trim();
     goTo(4);
   });
 }
 
+/* ---------- prévia do orçamento (usada na revisão e na tela final) ---------- */
+function previewCard() {
+  const { items, eqs, total, unpriced } = estimate();
+  const svcNames = state.services.map((s) => catalog.services[s]).filter(Boolean);
+  return `
+    <div class="quote">
+      <div class="quote__lines">
+        ${items.map((p) => `
+          <div class="quote__item">
+            <img src="${media(p.images[0])}" alt="">
+            <div>
+              <span class="quote__code">${esc(p.code)}</span>
+              <strong>${esc(p.name === p.code ? catOf(p.category)?.name : p.name)}</strong>
+              <span>${esc(p.subtitle)}${state.picks[p.code] ? ` · cor ${esc(state.picks[p.code].toLowerCase())}` : ""}</span>
+            </div>
+            <b class="quote__price ${p.price == null ? "is-muted" : ""}">${money(p.price)}</b>
+          </div>`).join("")}
+        ${eqs.map((e) => `
+          <div class="quote__row"><span>${esc(e.name)}</span><b class="quote__price ${e.price == null ? "is-muted" : ""}">${e.price == null ? "sob consulta" : `a partir de ${money(e.price)}`}</b></div>`).join("")}
+        <div class="quote__row"><span>${esc(catalog.delivery[state.delivery] || "Entrega")} · ${esc(state.city)}</span><b class="quote__price is-muted">a combinar</b></div>
+        ${svcNames.map((s) => `<div class="quote__row"><span>${esc(s)}</span><b class="quote__price is-muted">a combinar</b></div>`).join("")}
+      </div>
+      <div class="quote__total">
+        <small>Valor aproximado</small>
+        <strong>${total != null ? `${unpriced || eqs.length ? "a partir de " : ""}${money(total)}` : "Sob consulta"}</strong>
+        <p>Simulação com base nos preços de tabela. Frete, instalação${unpriced ? " e itens sob consulta" : ""} são confirmados pela consultora.</p>
+      </div>
+    </div>`;
+}
+
 /* ---------- etapa 4: revisão ---------- */
 function viewReview() {
   const codes = pickedCodes();
-  const eqNames = catalog.equipment.filter((e) => state.equipment.includes(e.slug)).map((e) => e.name);
-  const svcNames = state.services.map((s) => catalog.services[s]).filter(Boolean);
   app.innerHTML = `
     <section class="panel">
       <div class="panel__head">
         <div class="panel__eyebrow">Etapa 4 de 4</div>
-        <h2 class="panel__title">Tudo certo? <i>Confira e envie</i></h2>
-        <p class="panel__lead">Ao enviar, você recebe um código de atendimento para falar direto com a nossa consultora.</p>
+        <h2 class="panel__title">Prévia do <i>seu orçamento</i></h2>
+        <p class="panel__lead">Confira os itens. Ao enviar, você recebe um código e manda o resumo para a nossa consultora pelo WhatsApp.</p>
       </div>
-      <div class="review">
-        <div class="card">
-          <dl>
-            <div><dt>Cidade de entrega <button class="review__edit" data-go="3">editar</button></dt><dd>${esc(state.city)}</dd></div>
-            ${svcNames.length ? `<div><dt>Serviços</dt><dd>${svcNames.map(esc).join(", ")}</dd></div>` : ""}
-            ${eqNames.length ? `<div><dt>Equipamentos</dt><dd>${eqNames.map(esc).join(", ")}</dd></div>` : ""}
-            ${state.notes ? `<div><dt>Observações</dt><dd style="font-weight:400">${esc(state.notes)}</dd></div>` : ""}
-          </dl>
-        </div>
-        <div class="card">
-          <div class="label-sm" style="margin-bottom:12px">Modelos escolhidos (${codes.length}) <button class="review__edit" data-go="2">editar</button></div>
-          ${codes.length ? `<div class="picked">${codes.map((c) => {
-            const p = byCode(c);
-            return `<div class="picked__item"><img src="${media(p.images[0])}" alt=""><div><strong>${esc(p.name)}</strong><span>${esc(catOf(p.category)?.name)} · ${esc(p.subtitle)}${state.picks[c] ? ` · cor ${esc(state.picks[c].toLowerCase())}` : ""}</span></div></div>`;
-          }).join("")}</div>` : `<div class="alert">Você ainda não escolheu nenhum modelo. <button class="review__edit" data-go="2">Escolher agora</button></div>`}
-        </div>
+      ${codes.length ? previewCard() : `<div class="alert">Você ainda não escolheu nenhum modelo. <button class="review__edit" data-go="2">Escolher agora</button></div>`}
+      <div class="row-edit">
+        <button class="review__edit" data-go="2">Trocar modelos</button>
+        <button class="review__edit" data-go="3">Alterar entrega ou opcionais</button>
       </div>
       <div id="sendError"></div>
       <div class="actions">
         <button class="btn btn--ghost" type="button" data-back>${ICON.back} Voltar</button>
-        <button class="btn btn--primary" type="button" id="send" ${codes.length ? "" : "disabled"}>Enviar para a Anil ${ICON.arrow}</button>
+        <button class="btn btn--primary" type="button" id="send" ${codes.length ? "" : "disabled"}>Gerar meu orçamento ${ICON.arrow}</button>
       </div>
     </section>`;
 
@@ -463,7 +534,7 @@ async function submit() {
   const btn = document.getElementById("send");
   const errBox = document.getElementById("sendError");
   btn.disabled = true;
-  btn.innerHTML = "Enviando…";
+  btn.innerHTML = "Gerando…";
   errBox.innerHTML = "";
   try {
     const res = await fetch("/api/orcamentos", {
@@ -474,6 +545,7 @@ async function submit() {
         items: pickedCodes().map((code) => ({ code, color: state.picks[code] })),
         equipment: state.equipment,
         services: state.services,
+        delivery: state.delivery,
         city: state.city,
         notes: state.notes,
         seller: catalog.seller?.slug || "",
@@ -487,7 +559,7 @@ async function submit() {
   } catch (e) {
     errBox.innerHTML = `<div class="alert">${esc(e.message)} Tente novamente em instantes.</div>`;
     btn.disabled = false;
-    btn.innerHTML = `Enviar para a Anil ${ICON.arrow}`;
+    btn.innerHTML = `Gerar meu orçamento ${ICON.arrow}`;
   }
 }
 
@@ -495,22 +567,26 @@ async function submit() {
 function viewDone() {
   const r = state.result;
   if (!r) return goTo(1, { push: false });
+  const who = r.seller ? `<strong>${esc(r.seller)}</strong>` : "a nossa consultora";
   app.innerHTML = `
     <section class="panel">
-      <div class="card done">
+      <div class="done">
         <div class="done__icon">${ICON.check}</div>
-        <h2 class="panel__title">Pronto! <i>Recebemos seu pedido.</i></h2>
+        <h2 class="panel__title">Aqui está a <i>prévia do seu orçamento</i></h2>
         <div class="code-box">
-          <small>Seu código de atendimento</small>
+          <small>Código do orçamento</small>
           <strong id="code">${esc(r.code)}</strong>
           <button class="copy" type="button" id="copy">${ICON.copy}<span>Copiar código</span></button>
         </div>
+      </div>
+      ${previewCard()}
+      <div class="done done--cta">
         ${r.whatsapp_url ? `
-          <p>Agora é só enviar para ${r.seller ? `<strong>${esc(r.seller)}</strong>` : "a nossa consultora"} pelo WhatsApp. Ela já vai receber seus modelos e seguir com o orçamento.</p>
-          <a class="btn btn--wa" href="${esc(r.whatsapp_url)}" target="_blank" rel="noopener">${ICON.wa} Enviar código no WhatsApp</a>
-        ` : `<p>Envie esse código para a nossa consultora no WhatsApp para seguir com o orçamento.</p>`}
+          <p>Envie o resumo pelo WhatsApp e aguarde o atendimento: ${who} vai conversar diretamente com você para confirmar valores, frete e prazo.</p>
+          <a class="btn btn--wa" href="${esc(r.whatsapp_url)}" target="_blank" rel="noopener">${ICON.wa} Enviar resumo no WhatsApp</a>
+        ` : `<p>Envie o código para a nossa consultora no WhatsApp e aguarde o atendimento para confirmar valores, frete e prazo.</p>`}
         <div class="actions" style="justify-content:center">
-          <button class="btn btn--ghost" type="button" id="restart">Fazer um novo orçamento</button>
+          <button class="btn btn--ghost" type="button" id="restart">Fazer outra simulação</button>
         </div>
       </div>
     </section>`;
@@ -519,7 +595,7 @@ function viewDone() {
     try { await navigator.clipboard.writeText(r.code); e.currentTarget.querySelector("span").textContent = "Copiado"; } catch {}
   });
   document.getElementById("restart").addEventListener("click", () => {
-    state = { ...blank(), city: state.city };
+    state = { ...blank(), city: state.city, delivery: state.delivery };
     goTo(1);
   });
 }
@@ -534,9 +610,10 @@ async function init() {
     return;
   }
   state.categories = state.categories.filter((s) => catOf(s));
+  if (!(state.delivery in catalog.delivery)) state.delivery = "";
   if (state.result) state.step = 5;
   else if (state.step > 1 && !state.categories.length) state.step = 1;
-  else if (state.step > 3 && !cityOk(state.city)) state.step = 3;
+  else if (state.step > 3 && (!cityOk(state.city) || !state.delivery)) state.step = 3;
   history.replaceState({ step: state.step }, "", location.pathname + location.search);
   render();
 }

@@ -69,7 +69,21 @@ CREATE TABLE IF NOT EXISTS submissions (
   ip TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_submissions_created ON submissions(created_at DESC);
+CREATE TABLE IF NOT EXISTS meta (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 `);
+
+/* Colunas adicionadas depois do primeiro deploy (bancos já existentes recebem via ALTER TABLE). */
+function addColumn(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+addColumn("products", "price", "REAL");
+addColumn("equipment", "price", "REAL");
+addColumn("submissions", "delivery", "TEXT DEFAULT ''");
+addColumn("submissions", "total", "REAL");
 
 const JSON_FIELDS = ["specs", "highlights", "images", "colors", "categories", "items", "equipment", "services"];
 

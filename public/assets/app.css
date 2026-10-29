@@ -336,6 +336,50 @@ textarea.input { min-height: 96px; resize: vertical; }
 .toggle.is-selected { border-color: var(--aqua); background: var(--sky-soft); color: var(--navy); }
 .toggle.is-selected .tick { background: var(--aqua); border-color: var(--aqua); color: #fff; }
 
+/* ---------- tipo de entrega ---------- */
+.choices { display: grid; gap: 10px; }
+@media (min-width: 640px) { .choices { grid-template-columns: 1fr 1fr; } }
+.choice {
+  display: flex; align-items: center; gap: 12px; text-align: left; cursor: pointer;
+  border: 1.5px solid var(--line); border-radius: 14px; background: #fff; padding: 14px 16px;
+  font: 600 15px var(--f-body); color: var(--ink); transition: border-color .2s, box-shadow .2s, background .2s;
+}
+.choice__dot { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--line); transition: all .2s; }
+.choice.is-selected { border-color: var(--aqua); background: var(--sky-soft); box-shadow: 0 0 0 4px rgba(25, 167, 224, .12); color: var(--navy); }
+.choice.is-selected .choice__dot { border-color: var(--aqua); box-shadow: inset 0 0 0 4px #fff; background: var(--aqua); }
+.tab small svg { width: 12px; height: 12px; vertical-align: -1px; }
+
+/* ---------- prévia do orçamento ---------- */
+.quote { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; display: grid; }
+@media (min-width: 860px) { .quote { grid-template-columns: 1.5fr 1fr; } }
+.quote__lines { padding: 8px 20px; }
+.quote__item, .quote__row {
+  display: grid; align-items: center; gap: 12px; padding: 14px 0; border-bottom: 1px dashed var(--line);
+}
+.quote__item { grid-template-columns: 72px 1fr auto; }
+.quote__row { grid-template-columns: 1fr auto; font-size: 14px; color: var(--text); }
+.quote__lines > :last-child { border-bottom: 0; }
+.quote__item img { width: 72px; height: 54px; object-fit: cover; border-radius: 10px; }
+.quote__item strong { display: block; font: 700 15px/1.2 var(--f-display); color: var(--navy); }
+.quote__item span { display: block; font-size: 12.5px; color: var(--muted); }
+.quote__item .quote__code { font: 700 11px var(--f-display); letter-spacing: .12em; color: var(--aqua); margin-bottom: 2px; }
+.quote__price { font: 700 15px var(--f-display); color: var(--navy); white-space: nowrap; text-align: right; }
+.quote__price.is-muted { font: 600 12.5px var(--f-body); color: var(--muted); }
+.quote__total {
+  background: var(--navy); color: #fff; padding: 22px; display: flex; flex-direction: column; justify-content: center; gap: 4px;
+  position: relative; overflow: hidden;
+}
+.quote__total::after {
+  content: ""; position: absolute; right: -30%; bottom: -60%; width: 120%; height: 120%;
+  background: radial-gradient(closest-side, rgba(109, 196, 231, .3), transparent); pointer-events: none;
+}
+.quote__total small { font: 600 11px var(--f-display); letter-spacing: .28em; text-transform: uppercase; color: var(--sky); }
+.quote__total strong { font: 800 clamp(28px, 6vw, 40px)/1.1 var(--f-display); letter-spacing: -.01em; }
+.quote__total p { margin: 6px 0 0; font-size: 12.5px; color: rgba(255, 255, 255, .72); position: relative; z-index: 1; }
+.row-edit { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 12px; }
+.done.done--cta { margin-top: 22px; }
+.done--cta p { margin: 0 auto 16px; max-width: 52ch; }
+
 /* ---------- revisão ---------- */
 .review { display: grid; gap: 18px; }
 @media (min-width: 860px) { .review { grid-template-columns: 1fr 1.4fr; align-items: start; } }

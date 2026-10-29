@@ -2,11 +2,16 @@ import crypto from "node:crypto";
 import { config } from "./config.js";
 import { all, get, run } from "./db.js";
 
+export const DELIVERY = {
+  entrega: "Entrega no endereço",
+  retirada: "Retirada na fábrica (Divinópolis)",
+};
 export const SERVICES = {
-  entrega: "Entrega",
   instalacao: "Instalação no local",
   orientacao: "Orientação técnica",
 };
+// rótulos de orçamentos antigos, quando "entrega" ainda era um serviço
+export const SERVICE_LABELS = { ...SERVICES, entrega: "Entrega" };
 export const STATUSES = ["novo", "em_atendimento", "convertido", "perdido"];
 
 const ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"; // sem 0/O/1/I/L para ditar por telefone
@@ -28,6 +33,15 @@ const fail = (msg) => { throw new ValidationError(msg); };
 
 const clean = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+export const money = (v) => (v == null ? "sob consulta" : BRL.format(v));
+
+/** Soma só o que tem preço; frete, instalação e itens sem preço a consultora confirma. */
+function estimate(items, equipment) {
+  const priced = [...items, ...equipment].filter((x) => x.price != null);
+  return priced.length ? priced.reduce((t, x) => t + x.price, 0) : null;
+}
+
 /** Normaliza telefone BR para 55 + DDD + número. */
 export function normalizePhone(raw) {
   let d = String(raw || "").replace(/\D/g, "");
@@ -40,7 +54,9 @@ export function normalizePhone(raw) {
 // O link não pede dados pessoais: o telefone chega para a vendedora pela própria conversa do WhatsApp.
 export function createSubmission(body, meta) {
   const city = clean(body.city, 80);
-  if (city.length < 2) fail("Informe a cidade de entrega");
+  if (city.length < 2) fail("Informe a sua cidade");
+  const delivery = String(body.delivery || "");
+  if (!(delivery in DELIVERY)) fail("Escolha como prefere receber");
 
   const activeCats = new Set(all("SELECT slug FROM categories WHERE active = 1").map((c) => c.slug));
   const categories = [...new Set((body.categories || []).map(String))].filter((c) => activeCats.has(c));
@@ -48,18 +64,18 @@ export function createSubmission(body, meta) {
 
   const items = [];
   for (const it of (body.items || []).slice(0, 20)) {
-    const p = get("SELECT code, name, subtitle, category, colors FROM products WHERE code = ? AND active = 1", String(it.code));
+    const p = get("SELECT code, name, subtitle, category, colors, price FROM products WHERE code = ? AND active = 1", String(it.code));
     if (!p) continue;
     const color = p.colors.includes(it.color) ? it.color : "";
-    items.push({ code: p.code, name: p.name, subtitle: p.subtitle, category: p.category, color });
+    items.push({ code: p.code, name: p.name, subtitle: p.subtitle, category: p.category, color, price: p.price ?? null });
   }
   if (!items.length) fail("Escolha pelo menos um modelo");
 
-  const eqRows = all("SELECT slug, name, categories FROM equipment WHERE active = 1");
+  const eqRows = all("SELECT slug, name, categories, price FROM equipment WHERE active = 1");
   const equipment = eqRows
     .filter((e) => (body.equipment || []).includes(e.slug))
     .filter((e) => !e.categories.length || e.categories.some((c) => categories.includes(c)))
-    .map((e) => ({ slug: e.slug, name: e.name }));
+    .map((e) => ({ slug: e.slug, name: e.name, price: e.price ?? null }));
   const services = (body.services || []).filter((s) => s in SERVICES);
 
   let seller = clean(body.seller, 40).toLowerCase();
@@ -67,9 +83,9 @@ export function createSubmission(body, meta) {
 
   const code = newCode();
   run(
-    `INSERT INTO submissions (code, city, categories, items, equipment, services, notes, seller, origin, ip)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    code, city,
+    `INSERT INTO submissions (code, city, delivery, total, categories, items, equipment, services, notes, seller, origin, ip)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+    code, city, delivery, estimate(items, equipment),
     JSON.stringify(categories), JSON.stringify(items), JSON.stringify(equipment), JSON.stringify(services),
     String(body.notes || "").trim().slice(0, 1000), seller, clean(body.origin, 120), meta.ip || "",
   );
@@ -89,19 +105,59 @@ export function adminUrl(code) {
   return config.publicUrl ? `${config.publicUrl}/admin/#/orcamento/${code}` : "";
 }
 
-/** Mensagem curta que o cliente envia para a vendedora pelo WhatsApp. */
+function categoryNames() {
+  return Object.fromEntries(all("SELECT slug, name FROM categories").map((c) => [c.slug, c.name]));
+}
+
+/** Linha de um item com o código do modelo, para a vendedora identificar na hora. */
+function itemLine(i, cats) {
+  const parts = [i.code, cats[i.category], i.name === i.code ? i.subtitle : i.name, i.color && `cor ${i.color.toLowerCase()}`];
+  return `• ${parts.filter(Boolean).join(" · ")} — ${money(i.price)}`;
+}
+
+const fromPrice = (v) => (v == null ? "sob consulta" : `a partir de ${money(v)}`);
+
+/** Opcionais têm preço "a partir de" e itens sem preço ficam de fora: nesses casos o total é um piso. */
+function totalLabel(sub) {
+  if (sub.total == null) return "sob consulta";
+  const partial = sub.equipment.length > 0 || sub.items.some((i) => i.price == null);
+  return partial ? fromPrice(sub.total) : money(sub.total);
+}
+
+function summaryLines(sub) {
+  const cats = categoryNames();
+  const svc = sub.services.map((s) => SERVICE_LABELS[s] || s);
+  return {
+    head: [
+      `Cidade: ${sub.city}`,
+      `Entrega: ${DELIVERY[sub.delivery] || "a combinar"}`,
+      ...(svc.length ? [`Serviços: ${svc.join(", ")}`] : []),
+    ],
+    items: [
+      ...sub.items.map((i) => itemLine(i, cats)),
+      ...sub.equipment.map((e) => `• ${e.name} — ${fromPrice(e.price)}`),
+    ],
+    total: `Valor aproximado: ${totalLabel(sub)}`,
+  };
+}
+
+/** Resumo que o cliente envia para a Anil pelo WhatsApp. */
 export function whatsappMessage(sub) {
+  const { head, items, total } = summaryLines(sub);
+  const bold = (line) => line.replace(/^([^:]+):/, "*$1:*");
   const lines = [
-    `Olá! Montei meu orçamento no catálogo da Anil.`,
+    `Olá! Fiz uma simulação de orçamento no catálogo da Anil.`,
     ``,
-    `*Código: ${sub.code}*`,
+    `*Orçamento ${sub.code}*`,
+    ...head.map(bold),
     ``,
-    `Modelos escolhidos:`,
-    ...sub.items.map((i) => `• ${i.name}${i.subtitle ? ` (${i.subtitle})` : ""}${i.color ? ` — cor ${i.color.toLowerCase()}` : ""}`),
+    `*Itens:*`,
+    ...items,
     ``,
-    `Entrega em: ${sub.city}`,
+    `*${total}*`,
+    `(estimativa — frete, instalação e itens sob consulta a confirmar com a consultora)`,
   ];
-  if (sub.equipment.length) lines.push(``, `Opcionais: ${sub.equipment.map((e) => e.name).join(", ")}`);
+  if (sub.notes) lines.push(``, `Obs.: ${sub.notes}`);
   return lines.join("\n");
 }
 
@@ -111,13 +167,13 @@ export function whatsappLink(number, text) {
 }
 
 export function summaryText(sub) {
-  const svc = sub.services.map((s) => SERVICES[s] || s);
+  const { head, items, total } = summaryLines(sub);
   return [
     `Orçamento ${sub.code}`,
-    `Cidade de entrega: ${sub.city}`,
-    `Modelos: ${sub.items.map((i) => `${i.name}${i.color ? ` (${i.color})` : ""}`).join("; ")}`,
-    sub.equipment.length ? `Opcionais: ${sub.equipment.map((e) => e.name).join(", ")}` : "",
-    svc.length ? `Serviços: ${svc.join(", ")}` : "",
+    ...head,
+    `Itens:`,
+    ...items,
+    total,
     sub.notes ? `Observações: ${sub.notes}` : "",
   ].filter(Boolean).join("\n");
 }
@@ -129,11 +185,13 @@ export async function notifyWebhook(sub) {
     event: "orcamento.criado",
     codigo: sub.code,
     criado_em: sub.created_at,
-    cidade_entrega: sub.city,
+    cidade: sub.city,
+    entrega: { tipo: sub.delivery, nome: DELIVERY[sub.delivery] || "" },
+    valor_aproximado: sub.total,
     categorias: sub.categories,
     modelos: sub.items,
     opcionais: sub.equipment,
-    servicos: sub.services.map((s) => ({ slug: s, nome: SERVICES[s] || s })),
+    servicos: sub.services.map((s) => ({ slug: s, nome: SERVICE_LABELS[s] || s })),
     observacoes: sub.notes,
     vendedora: sub.seller ? { slug: sub.seller, nome: seller.name, whatsapp: seller.whatsapp } : null,
     origem: sub.origin,

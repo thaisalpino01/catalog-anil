@@ -9,6 +9,9 @@ const STATUS = {
   perdido: "Perdido",
 };
 const SERVICES = { entrega: "Entrega", instalacao: "Instalação no local", orientacao: "Orientação técnica" };
+const DELIVERY = { entrega: "Entrega no endereço", retirada: "Retirada na fábrica (Divinópolis)" };
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const money = (v) => (v == null ? "sob consulta" : BRL.format(v));
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const media = (f) => (f ? `/media/${encodeURIComponent(f)}` : "");
@@ -113,8 +116,8 @@ async function viewSubmissions() {
       ${cat.sellers.length ? `<select class="input" id="seller"><option value="">Todas as vendedoras</option>${cat.sellers.map((s) => `<option value="${esc(s.slug)}" ${listState.seller === s.slug ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>` : ""}
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Código</th><th>Cidade de entrega</th><th>Modelos</th><th>Vendedora</th><th>Data</th><th>Status</th></tr></thead>
-      <tbody id="rows"><tr><td colspan="6" class="empty">Carregando…</td></tr></tbody>
+      <thead><tr><th>Código</th><th>Cidade</th><th>Modelos</th><th>Valor aprox.</th><th>Vendedora</th><th>Data</th><th>Status</th></tr></thead>
+      <tbody id="rows"><tr><td colspan="7" class="empty">Carregando…</td></tr></tbody>
     </table></div>`;
 
   const load = async () => {
@@ -125,11 +128,12 @@ async function viewSubmissions() {
       <tr data-code="${esc(s.code)}">
         <td><span class="code">${esc(s.code)}</span></td>
         <td><strong>${esc(s.city)}</strong></td>
-        <td><div class="thumbs">${s.items.slice(0, 4).map((i) => { const p = productByCode(i.code); return p ? `<img src="${media(p.images[0])}" alt="" title="${esc(i.name)}">` : ""; }).join("")}</div><div class="muted">${s.items.map((i) => esc(i.name)).join(", ")}</div></td>
+        <td><div class="thumbs">${s.items.slice(0, 4).map((i) => { const p = productByCode(i.code); return p ? `<img src="${media(p.images[0])}" alt="" title="${esc(i.name)}">` : ""; }).join("")}</div><div class="muted">${s.items.map((i) => esc(i.code)).join(", ")}</div></td>
+        <td><strong>${s.total != null ? money(s.total) : "—"}</strong></td>
         <td class="muted">${esc(s.seller_name || "—")}</td>
         <td class="muted">${fmtDate(s.created_at)}</td>
         <td><span class="pill pill--${s.status}">${STATUS[s.status] || s.status}</span></td>
-      </tr>`).join("") : `<tr><td colspan="6" class="empty">Nenhum orçamento encontrado.</td></tr>`;
+      </tr>`).join("") : `<tr><td colspan="7" class="empty">Nenhum orçamento encontrado.</td></tr>`;
     document.querySelectorAll("#rows tr[data-code]").forEach((tr) => tr.addEventListener("click", () => { location.hash = `#/orcamento/${tr.dataset.code}`; }));
   };
 
@@ -154,15 +158,17 @@ async function viewSubmission(code) {
       <div class="card">
         <h3 class="section-title">Pedido</h3>
         <dl class="kv">
-          <dt>Cidade de entrega</dt><dd>${esc(s.city)}</dd>
+          <dt>Cidade</dt><dd>${esc(s.city)}</dd>
+          <dt>Entrega</dt><dd>${esc(DELIVERY[s.delivery] || "—")}</dd>
           <dt>Serviços</dt><dd>${s.services.map((x) => esc(SERVICES[x] || x)).join(", ") || "—"}</dd>
-          <dt>Opcionais</dt><dd>${s.equipment.map((e) => esc(e.name)).join(", ") || "—"}</dd>
+          <dt>Opcionais</dt><dd>${s.equipment.map((e) => `${esc(e.name)} (${money(e.price)})`).join(", ") || "—"}</dd>
+          <dt>Valor aproximado</dt><dd>${s.total != null ? money(s.total) : "sob consulta"}</dd>
           <dt>Observações</dt><dd style="font-weight:400">${esc(s.notes || "—")}</dd>
         </dl>
         <h3 class="section-title" style="margin-top:22px">Modelos escolhidos</h3>
         <div class="items">${s.items.map((i) => {
           const p = productByCode(i.code);
-          return `<div class="item">${p ? `<img src="${media(p.images[0])}" alt="">` : "<span></span>"}<div><strong>${esc(i.name)}</strong><div class="muted">${esc(i.subtitle)}${i.color ? ` · cor ${esc(i.color.toLowerCase())}` : ""}${p ? ` · ${p.length ? `${fmtM(p.length)} × ${fmtM(p.width)} m` : ""}${p.depth ? ` · ${esc(p.depth)}` : ""}` : ""}</div></div></div>`;
+          return `<div class="item">${p ? `<img src="${media(p.images[0])}" alt="">` : "<span></span>"}<div><strong>${esc(i.name === i.code ? i.code : `${i.code} · ${i.name}`)}</strong> <span class="muted">${money(i.price)}</span><div class="muted">${esc(i.subtitle)}${i.color ? ` · cor ${esc(i.color.toLowerCase())}` : ""}${p ? ` · ${p.length ? `${fmtM(p.length)} × ${fmtM(p.width)} m` : ""}${p.depth ? ` · ${esc(p.depth)}` : ""}` : ""}</div></div></div>`;
         }).join("")}</div>
       </div>
       <div class="card">
@@ -258,7 +264,7 @@ async function viewProducts() {
         <div class="pgrid">${ps.map((p) => `
           <button class="pcard ${p.active ? "" : "is-off"}" data-id="${p.id}">
             <img src="${media(p.images[0])}" alt="" loading="lazy">
-            <div><strong>${esc(p.name)}</strong><span class="muted">${esc(p.code)} · ${esc(p.subtitle)}</span></div>
+            <div><strong>${esc(p.name)}</strong><span class="muted">${esc(p.code)} · ${money(p.price)}</span></div>
           </button>`).join("") || `<div class="muted">Nenhum produto.</div>`}</div>
       </section>`;
     }).join("")}`;
@@ -286,7 +292,8 @@ function editProduct(p) {
         <label class="field">Largura (m)<input class="input" name="width" type="number" step="0.01" value="${esc(p.width ?? "")}"></label>
         <label class="field">Profundidade<input class="input" name="depth" value="${esc(p.depth)}" placeholder="Ex.: 1,40 m"></label>
       </div>
-      <div class="grid2">
+      <div class="grid3">
+        <label class="field">Preço (R$) <span class="hint">vazio = sob consulta</span><input class="input" name="price" type="number" step="0.01" min="0" value="${esc(p.price ?? "")}"></label>
         <label class="field">Lugares (spas/banheiras)<input class="input" name="people" type="number" value="${esc(p.people ?? "")}"></label>
         <label class="field">Cores <span class="hint">separadas por vírgula</span><input class="input" name="colors" value="${esc(p.colors.join(", "))}"></label>
       </div>
@@ -307,7 +314,7 @@ function editProduct(p) {
     const f = form.elements;
     const body = {
       code: f.code.value, category: f.category.value, sort: f.sort.value, name: f.name.value, subtitle: f.subtitle.value,
-      length: f.length.value, width: f.width.value, depth: f.depth.value, people: f.people.value,
+      length: f.length.value, width: f.width.value, depth: f.depth.value, people: f.people.value, price: f.price.value,
       colors: f.colors.value.split(",").map((s) => s.trim()).filter(Boolean),
       highlights: lines(f.highlights.value), images: getImgs(), plan: getPlan()[0] || "", active: f.active.checked,
     };
@@ -397,7 +404,10 @@ function editEquipment(eq) {
         <label class="field">Nome<input class="input" name="name" value="${esc(eq.name)}" required></label>
         <label class="field">Ordem<input class="input" name="sort" type="number" value="${esc(eq.sort)}"></label>
       </div>
-      <label class="field">Descrição<input class="input" name="description" value="${esc(eq.description)}"></label>
+      <div class="grid2">
+        <label class="field">Descrição<input class="input" name="description" value="${esc(eq.description)}"></label>
+        <label class="field">Preço "a partir de" (R$) <span class="hint">vazio = sob consulta</span><input class="input" name="price" type="number" step="0.01" min="0" value="${esc(eq.price ?? "")}"></label>
+      </div>
       <div class="field">Aparece para
         <div class="row">${cat.categories.map((c) => `<label class="check"><input type="checkbox" name="cats" value="${esc(c.slug)}" ${eq.categories.includes(c.slug) ? "checked" : ""}> ${esc(c.name)}</label>`).join("")}</div>
       </div>
@@ -414,7 +424,7 @@ function editEquipment(eq) {
     e.preventDefault();
     const f = form.elements;
     const body = {
-      name: f.name.value, sort: f.sort.value, description: f.description.value, image: getImg()[0] || "",
+      name: f.name.value, sort: f.sort.value, description: f.description.value, price: f.price.value, image: getImg()[0] || "",
       categories: [...form.querySelectorAll("input[name=cats]:checked")].map((i) => i.value), active: f.active.checked,
     };
     try {

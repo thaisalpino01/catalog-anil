@@ -25,7 +25,6 @@ const blank = () => ({
   step: 1,
   categories: [],
   picks: {},
-  tab: "",
   filters: {},
   equipment: [],
   services: [],
@@ -167,7 +166,6 @@ function viewCategories() {
       const p = byCode(code);
       if (!p || !state.categories.includes(p.category)) delete state.picks[code];
     }
-    if (!state.categories.includes(state.tab)) state.tab = state.categories[0];
     goTo(2);
   });
 }
@@ -189,42 +187,69 @@ function chipsFor(products) {
   return [];
 }
 
-function viewProducts() {
-  const tab = state.categories.includes(state.tab) ? state.tab : state.categories[0];
-  state.tab = tab;
-  const all = catalog.products.filter((p) => p.category === tab);
-  const chips = chipsFor(all);
-  const active = chips.find((c) => c.key === state.filters[tab]);
-  const list = active ? all.filter(active.test) : all;
-  const countIn = (slug) => pickedCodes().filter((c) => byCode(c).category === slug).length;
+const countIn = (slug) => pickedCodes().filter((c) => byCode(c).category === slug).length;
 
+/** Todas as categorias marcadas aparecem uma abaixo da outra; as abas só levam até cada seção. */
+function viewProducts() {
+  const multi = state.categories.length > 1;
   app.innerHTML = `
     <section class="panel">
       <div class="panel__head">
         <div class="panel__eyebrow">Etapa 2 de 4</div>
         <h2 class="panel__title">Escolha o <i>seu favorito</i></h2>
-        <p class="panel__lead">Toque na foto para ver detalhes, planta e cores. Escolha o modelo que você mais gostou${state.categories.length > 1 ? " em cada tipo" : ""}.</p>
+        <p class="panel__lead">Toque na foto para ver detalhes, planta e cores. Escolha o modelo que você mais gostou${multi ? " em cada tipo" : ""}.</p>
       </div>
-      ${state.categories.length > 1 ? `<div class="tabs" role="tablist">
-        ${state.categories.map((s) => `<button class="tab ${s === tab ? "is-active" : ""}" role="tab" aria-selected="${s === tab}" data-tab="${esc(s)}">${tabLabel(s, countIn(s))}</button>`).join("")}
-      </div>` : ""}
-      ${chips.length ? `<div class="chips">
-        <button class="chip ${!active ? "is-active" : ""}" data-chip="">Todos (${all.length})</button>
-        ${chips.map((c) => `<button class="chip ${active?.key === c.key ? "is-active" : ""}" data-chip="${c.key}">${c.label}</button>`).join("")}
-      </div>` : ""}
-      <div class="grid stagger">
-        ${list.map(productCard).join("") || `<div class="empty">Nenhum modelo nesse filtro.</div>`}
-      </div>
+      ${multi ? `<nav class="tabs tabs--sticky" aria-label="Ir para">
+        ${state.categories.map((s, i) => `<button class="tab ${i === 0 ? "is-active" : ""}" type="button" data-tab="${esc(s)}">${tabLabel(s, countIn(s))}</button>`).join("")}
+      </nav>` : ""}
+      ${state.categories.map((s) => `<section class="catsec" id="sec-${esc(s)}" data-sec="${esc(s)}"></section>`).join("")}
       <div class="actions">
         <button class="btn btn--ghost" type="button" data-back>${ICON.back} Voltar</button>
         <span></span>
       </div>
     </section>`;
 
-  app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { state.tab = b.dataset.tab; save(); viewProducts(); }));
-  app.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { state.filters[tab] = b.dataset.chip; save(); viewProducts(); }));
+  state.categories.forEach((s) => renderSection(s, multi));
   app.querySelector("[data-back]").addEventListener("click", () => goTo(1));
-  app.querySelectorAll(".prod").forEach((el) => {
+  app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
+    app.querySelectorAll("[data-tab]").forEach((x) => x.classList.toggle("is-active", x === b));
+    document.getElementById(`sec-${b.dataset.tab}`).scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
+
+  if (multi && "IntersectionObserver" in window) {
+    // destaca a aba da seção que está na tela
+    const spy = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (!e.isIntersecting) continue;
+        app.querySelectorAll("[data-tab]").forEach((b) => b.classList.toggle("is-active", b.dataset.tab === e.target.dataset.sec));
+      }
+    }, { rootMargin: "-45% 0px -50% 0px" });
+    app.querySelectorAll("[data-sec]").forEach((el) => spy.observe(el));
+  }
+}
+
+function renderSection(slug, withTitle = state.categories.length > 1) {
+  const sec = app.querySelector(`[data-sec="${CSS.escape(slug)}"]`);
+  if (!sec) return;
+  const all = catalog.products.filter((p) => p.category === slug);
+  const chips = chipsFor(all);
+  const active = chips.find((c) => c.key === state.filters[slug]);
+  const list = active ? all.filter(active.test) : all;
+  sec.innerHTML = `
+    ${withTitle ? `<h3 class="catsec__title">${esc(catOf(slug)?.name)} <small>${all.length} modelos</small></h3>` : ""}
+    ${chips.length ? `<div class="chips">
+      <button class="chip ${!active ? "is-active" : ""}" data-chip="">Todos (${all.length})</button>
+      ${chips.map((c) => `<button class="chip ${active?.key === c.key ? "is-active" : ""}" data-chip="${c.key}">${c.label}</button>`).join("")}
+    </div>` : ""}
+    <div class="grid stagger">
+      ${list.map(productCard).join("") || `<div class="empty">Nenhum modelo nesse filtro.</div>`}
+    </div>`;
+  sec.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => {
+    state.filters[slug] = b.dataset.chip;
+    save();
+    renderSection(slug);
+  }));
+  sec.querySelectorAll(".prod").forEach((el) => {
     const code = el.dataset.code;
     el.querySelector(".prod__media").addEventListener("click", () => openSheet(code));
     el.querySelector(".btn--details").addEventListener("click", () => openSheet(code));
@@ -617,4 +642,8 @@ async function init() {
   history.replaceState({ step: state.step }, "", location.pathname + location.search);
   render();
 }
+// altura real do topo, para as abas fixas ficarem logo abaixo dele
+const syncTopbar = () => document.documentElement.style.setProperty("--topbar-h", `${document.querySelector(".topbar").offsetHeight}px`);
+window.addEventListener("resize", syncTopbar);
+syncTopbar();
 init();

@@ -10,7 +10,7 @@ import { seedIfEmpty } from "./seed.js";
 import { checkCredentials, issueSession, clearSession, isAuthenticated, requireAdmin } from "./auth.js";
 import {
   createSubmission, getSubmission, notifyWebhook, sellerFor, whatsappMessage, whatsappLink,
-  summaryText, formatPhone, normalizePhone, SERVICES, STATUSES,
+  summaryText, normalizePhone, SERVICES, STATUSES,
 } from "./submissions.js";
 
 seedIfEmpty();
@@ -104,9 +104,7 @@ function decorate(sub) {
   const seller = sellerFor(sub);
   return {
     ...sub,
-    phone_formatted: formatPhone(sub.phone),
     seller_name: seller.name,
-    whatsapp_cliente: `https://wa.me/${sub.phone}`,
     resumo: summaryText(sub),
   };
 }
@@ -118,10 +116,8 @@ function querySubmissions(q) {
   if (q.seller) { where.push("seller = ?"); params.push(String(q.seller)); }
   if (q.q) {
     const term = String(q.q).trim();
-    const digits = term.replace(/\D/g, "");
-    where.push(`(code LIKE ? OR name LIKE ?${digits.length >= 4 ? " OR phone LIKE ?" : ""})`);
-    params.push(`%${term.toUpperCase()}%`, `%${term}%`);
-    if (digits.length >= 4) params.push(`%${digits}%`);
+    where.push("(code LIKE ? OR city LIKE ? OR items LIKE ?)");
+    params.push(`%${term.toUpperCase()}%`, `%${term}%`, `%${term}%`);
   }
   return { sql: where.length ? `WHERE ${where.join(" AND ")}` : "", params };
 }
@@ -145,9 +141,9 @@ admin.get("/orcamentos.csv", (req, res) => {
   const { sql, params } = querySubmissions(req.query);
   const rows = all(`SELECT * FROM submissions ${sql} ORDER BY created_at DESC`, ...params);
   const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const header = ["codigo", "data", "nome", "nascimento", "whatsapp", "cidade", "modelos", "opcionais", "servicos", "observacoes", "vendedora", "status"];
+  const header = ["codigo", "data", "cidade_entrega", "modelos", "opcionais", "servicos", "observacoes", "vendedora", "status"];
   const lines = rows.map((s) => [
-    s.code, s.created_at, s.name, s.birth_date, s.phone, s.city,
+    s.code, s.created_at, s.city,
     s.items.map((i) => `${i.name}${i.color ? ` (${i.color})` : ""}`).join("; "),
     s.equipment.map((e) => e.name).join("; "),
     s.services.map((x) => SERVICES[x] || x).join("; "),

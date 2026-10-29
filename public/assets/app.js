@@ -1,4 +1,4 @@
-const STORE_KEY = "anil-orcamento-v1";
+const STORE_KEY = "anil-orcamento-v2";
 const app = document.getElementById("app");
 const tray = document.getElementById("tray");
 const sheet = document.getElementById("sheet");
@@ -13,7 +13,6 @@ const ICON = {
   depth: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M8 17l4 4 4-4M3 8c2-1.5 4-1.5 6 0s4 1.5 6 0 4-1.5 6 0"/></svg>',
   people: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 5.2a3 3 0 010 5.6M18 14.8c1.8.7 3 2.4 3 5.2"/></svg>',
   photos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><circle cx="8.5" cy="10" r="1.6"/><path d="M21 16l-5-5-8 8"/></svg>',
-  shield: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 8.3-7 10-4-1.7-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/></svg>',
   drop: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3s6 6.6 6 11a6 6 0 01-12 0c0-4.4 6-11 6-11z"/></svg>',
   copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 012-2h9"/></svg>',
   wa: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 00-8.6 15.1L2 22l5-1.3A10 10 0 1012 2zm0 18.2a8.2 8.2 0 01-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1112 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 01-2-1.2 7.4 7.4 0 01-1.4-1.7c-.1-.2 0-.4.1-.5l.4-.4.2-.4v-.4l-.8-1.9c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 00-.7.3 3 3 0 00-.9 2.2 5.2 5.2 0 001.1 2.8 11.9 11.9 0 004.6 4c1.7.7 2.3.8 3.2.7a2.7 2.7 0 001.8-1.3 2.2 2.2 0 00.2-1.3c-.1-.1-.3-.2-.5-.3z"/></svg>',
@@ -24,7 +23,6 @@ const COLOR_SWATCH = { azul: "#2f8fd6", branca: "#ffffff", branco: "#ffffff" };
 /* ---------- estado ---------- */
 const blank = () => ({
   step: 1,
-  client: { name: "", birth: "", phone: "" },
   categories: [],
   picks: {},
   tab: "",
@@ -57,33 +55,7 @@ const byCode = (code) => catalog.products.find((p) => p.code === code);
 const catOf = (slug) => catalog.categories.find((c) => c.slug === slug);
 const pickedCodes = () => Object.keys(state.picks).filter((c) => byCode(c));
 
-function maskPhone(v) {
-  const d = v.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "").slice(0, 11);
-  if (d.length <= 2) return d.length ? `(${d}` : "";
-  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
-  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-}
-function maskDate(v) {
-  const d = v.replace(/\D/g, "").slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
-}
-function birthIso(v) {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v || "");
-  if (!m) return null;
-  const [_, dd, mm, yyyy] = m;
-  const d = new Date(Date.UTC(+yyyy, +mm - 1, +dd));
-  if (d.getUTCDate() !== +dd || d.getUTCMonth() !== +mm - 1) return null;
-  const age = (Date.now() - d) / (365.25 * 864e5);
-  if (age < 16 || age > 110) return null;
-  return `${yyyy}-${mm}-${dd}`;
-}
-function phoneOk(v) {
-  const d = v.replace(/\D/g, "");
-  return d.length === 10 || (d.length === 11 && d[2] === "9");
-}
+const cityOk = (v) => String(v || "").trim().length >= 2;
 
 function specsOf(p) {
   const out = [];
@@ -94,7 +66,7 @@ function specsOf(p) {
 }
 
 /* ---------- navegação ---------- */
-const STEP_PROGRESS = { 1: 8, 2: 30, 3: 55, 4: 78, 5: 92, 6: 100 };
+const STEP_PROGRESS = { 1: 12, 2: 45, 3: 75, 4: 92, 5: 100 };
 
 function goTo(step, { push = true } = {}) {
   state.step = step;
@@ -106,7 +78,7 @@ function goTo(step, { push = true } = {}) {
 window.addEventListener("popstate", (e) => {
   if (sheet.open) sheet.close();
   const step = e.state?.step || 1;
-  if (state.result && step < 6) return history.pushState({ step: 6 }, "");
+  if (state.result && step < 5) return history.pushState({ step: 5 }, "");
   state.step = step;
   save();
   render();
@@ -123,13 +95,13 @@ function renderSteps() {
 
 function render() {
   renderSteps();
-  const views = { 1: viewClient, 2: viewCategories, 3: viewProducts, 4: viewDetails, 5: viewReview, 6: viewDone };
-  (views[state.step] || viewClient)();
+  const views = { 1: viewCategories, 2: viewProducts, 3: viewDetails, 4: viewReview, 5: viewDone };
+  (views[state.step] || viewCategories)();
   renderTray();
 }
 
-/* ---------- etapa 1: dados ---------- */
-function viewClient() {
+/* ---------- etapa 1: vitrine + categorias ---------- */
+function viewCategories() {
   const seller = catalog.seller;
   app.innerHTML = `
     <section class="hero">
@@ -142,85 +114,27 @@ function viewClient() {
       <svg class="hero__wave" viewBox="0 0 1440 70" preserveAspectRatio="none" aria-hidden="true"><path d="M0 35c180-45 360-45 540 0s360 45 540 0 270-35 360-20v55H0z"/></svg>
     </section>
     <section class="panel panel--overlap">
-      <form class="card" id="clientForm" novalidate>
+      <div class="card">
         <div class="panel__head">
-          <div class="panel__eyebrow">Etapa 1 de 5</div>
-          <h2 class="panel__title">Primeiro, <i>quem é você?</i></h2>
+          <div class="panel__eyebrow">Etapa 1 de 4</div>
+          <h2 class="panel__title">O que você <i>procura?</i></h2>
+          <p class="panel__lead">Pode escolher mais de uma opção. Vamos mostrar só os modelos do que você marcar.</p>
         </div>
-        <div class="form-grid">
-          <div class="field">
-            <label for="name">Nome completo</label>
-            <input class="input" id="name" name="name" autocomplete="name" placeholder="Como está no seu documento" value="${esc(state.client.name)}" required>
-            <div class="field__error" data-for="name"></div>
-          </div>
-          <div class="form-grid form-grid--2">
-            <div class="field">
-              <label for="birth">Data de nascimento</label>
-              <input class="input" id="birth" name="birth" inputmode="numeric" autocomplete="bday" placeholder="dd/mm/aaaa" value="${esc(state.client.birth)}" required>
-              <div class="field__error" data-for="birth"></div>
-            </div>
-            <div class="field">
-              <label for="phone">WhatsApp</label>
-              <input class="input" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="tel-national" placeholder="(37) 99999-9999" value="${esc(state.client.phone)}" required>
-              <div class="field__error" data-for="phone"></div>
-            </div>
-          </div>
-          <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <div class="cats stagger">
+          ${catalog.categories.map((c) => `
+            <button type="button" class="cat ${state.categories.includes(c.slug) ? "is-selected" : ""}" data-slug="${esc(c.slug)}" aria-pressed="${state.categories.includes(c.slug)}">
+              <img src="${media(c.cover)}" alt="" loading="lazy">
+              <span class="cat__check">${ICON.check}</span>
+              <span class="cat__text">
+                <span class="cat__name">${esc(c.name)}</span>
+                <span class="cat__tag">${esc(c.tagline || c.description)}</span>
+              </span>
+            </button>`).join("")}
         </div>
-        <p class="privacy">${ICON.shield}<span>Seus dados são usados apenas pela equipe da Anil para preparar e enviar o seu orçamento.</span></p>
         <div class="actions">
           <span></span>
-          <button class="btn btn--primary" type="submit">Começar ${ICON.arrow}</button>
+          <button class="btn btn--primary" type="button" id="next" ${state.categories.length ? "" : "disabled"}>Ver modelos ${ICON.arrow}</button>
         </div>
-      </form>
-    </section>`;
-
-  const form = document.getElementById("clientForm");
-  const name = form.name, birth = form.birth, phone = form.phone;
-  birth.addEventListener("input", () => { birth.value = maskDate(birth.value); });
-  phone.addEventListener("input", () => { phone.value = maskPhone(phone.value); });
-  if (!state.client.name) setTimeout(() => name.focus({ preventScroll: true }), 400);
-
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const errs = {};
-    const n = name.value.replace(/\s+/g, " ").trim();
-    if (n.split(" ").length < 2) errs.name = "Informe nome e sobrenome";
-    if (!birthIso(birth.value)) errs.birth = "Use o formato dd/mm/aaaa";
-    if (!phoneOk(phone.value)) errs.phone = "Informe o WhatsApp com DDD";
-    form.querySelectorAll(".field__error").forEach((el) => { el.textContent = errs[el.dataset.for] || ""; });
-    [name, birth, phone].forEach((el) => el.classList.toggle("is-invalid", !!errs[el.name]));
-    if (Object.keys(errs).length) return form.querySelector(".is-invalid")?.focus();
-    state.client = { name: n, birth: birth.value, phone: phone.value };
-    state.hp = form.website.value;
-    goTo(2);
-  });
-}
-
-/* ---------- etapa 2: categorias ---------- */
-function viewCategories() {
-  const first = esc(state.client.name.split(" ")[0]);
-  app.innerHTML = `
-    <section class="panel">
-      <div class="panel__head">
-        <div class="panel__eyebrow">Etapa 2 de 5</div>
-        <h2 class="panel__title">${first}, o que você <i>procura?</i></h2>
-        <p class="panel__lead">Pode escolher mais de uma opção. Vamos mostrar só os modelos do que você marcar.</p>
-      </div>
-      <div class="cats stagger">
-        ${catalog.categories.map((c) => `
-          <button type="button" class="cat ${state.categories.includes(c.slug) ? "is-selected" : ""}" data-slug="${esc(c.slug)}" aria-pressed="${state.categories.includes(c.slug)}">
-            <img src="${media(c.cover)}" alt="" loading="lazy">
-            <span class="cat__check">${ICON.check}</span>
-            <span class="cat__text">
-              <span class="cat__name">${esc(c.name)}</span>
-              <span class="cat__tag">${esc(c.tagline || c.description)}</span>
-            </span>
-          </button>`).join("")}
-      </div>
-      <div class="actions">
-        <button class="btn btn--ghost" type="button" data-back>${ICON.back} Voltar</button>
-        <button class="btn btn--primary" type="button" id="next" ${state.categories.length ? "" : "disabled"}>Ver modelos ${ICON.arrow}</button>
       </div>
     </section>`;
 
@@ -232,7 +146,6 @@ function viewCategories() {
     document.getElementById("next").disabled = !state.categories.length;
     save();
   }));
-  app.querySelector("[data-back]").addEventListener("click", () => goTo(1));
   document.getElementById("next").addEventListener("click", () => {
     // mantém só as escolhas das categorias ainda marcadas, na ordem do catálogo
     state.categories = catalog.categories.map((c) => c.slug).filter((s) => state.categories.includes(s));
@@ -241,11 +154,11 @@ function viewCategories() {
       if (!p || !state.categories.includes(p.category)) delete state.picks[code];
     }
     if (!state.categories.includes(state.tab)) state.tab = state.categories[0];
-    goTo(3);
+    goTo(2);
   });
 }
 
-/* ---------- etapa 3: modelos ---------- */
+/* ---------- etapa 2: modelos ---------- */
 function chipsFor(products) {
   if (products.length <= 5) return [];
   if (products.every((p) => p.people)) {
@@ -274,7 +187,7 @@ function viewProducts() {
   app.innerHTML = `
     <section class="panel">
       <div class="panel__head">
-        <div class="panel__eyebrow">Etapa 3 de 5</div>
+        <div class="panel__eyebrow">Etapa 2 de 4</div>
         <h2 class="panel__title">Escolha os <i>seus favoritos</i></h2>
         <p class="panel__lead">Toque na foto para ver detalhes, planta e cores. Marque quantos modelos quiser.</p>
       </div>
@@ -296,7 +209,7 @@ function viewProducts() {
 
   app.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => { state.tab = b.dataset.tab; save(); viewProducts(); }));
   app.querySelectorAll("[data-chip]").forEach((b) => b.addEventListener("click", () => { state.filters[tab] = b.dataset.chip; save(); viewProducts(); }));
-  app.querySelector("[data-back]").addEventListener("click", () => goTo(2));
+  app.querySelector("[data-back]").addEventListener("click", () => goTo(1));
   app.querySelectorAll(".prod").forEach((el) => {
     const code = el.dataset.code;
     el.querySelector(".prod__media").addEventListener("click", () => openSheet(code));
@@ -352,7 +265,7 @@ function togglePick(code, color) {
 
 function renderTray() {
   const codes = pickedCodes();
-  const show = state.step === 3 && codes.length > 0;
+  const show = state.step === 2 && codes.length > 0;
   tray.hidden = !show;
   document.body.classList.toggle("has-tray", show);
   if (!show) return;
@@ -360,7 +273,7 @@ function renderTray() {
   document.getElementById("trayLabel").textContent = codes.length > 1 ? "modelos escolhidos" : "modelo escolhido";
   document.getElementById("trayThumbs").innerHTML = codes.slice(-4).map((c) => `<img src="${media(byCode(c).images[0])}" alt="">`).join("");
 }
-document.getElementById("trayNext").addEventListener("click", () => goTo(4));
+document.getElementById("trayNext").addEventListener("click", () => goTo(3));
 
 /* ---------- folha de detalhes ---------- */
 function openSheet(code) {
@@ -418,18 +331,38 @@ function openSheet(code) {
 }
 sheet.addEventListener("click", (e) => { if (e.target === sheet) sheet.close(); });
 
-/* ---------- etapa 4: opcionais e detalhes ---------- */
+/* ---------- etapa 3: cidade e opcionais ---------- */
 function viewDetails() {
   const eqs = catalog.equipment.filter((e) => !e.categories.length || e.categories.some((c) => state.categories.includes(c)));
   state.equipment = state.equipment.filter((s) => eqs.some((e) => e.slug === s));
   app.innerHTML = `
     <section class="panel">
       <div class="panel__head">
-        <div class="panel__eyebrow">Etapa 4 de 5</div>
-        <h2 class="panel__title">Deixe do <i>seu jeito</i></h2>
-        <p class="panel__lead">Marque os equipamentos que você tem interesse. Nossa equipe confirma o que é compatível com cada modelo.</p>
+        <div class="panel__eyebrow">Etapa 3 de 4</div>
+        <h2 class="panel__title">Onde vai ser <i>a entrega?</i></h2>
+        <p class="panel__lead">Entregamos em todo o estado de Minas Gerais.</p>
       </div>
-      ${eqs.length ? `<div class="eqs stagger">
+      <div class="card">
+        <div class="form-grid form-grid--2">
+          <div class="field">
+            <label for="city">Cidade de entrega</label>
+            <input class="input" id="city" placeholder="Ex.: Divinópolis" value="${esc(state.city)}" maxlength="80" autocomplete="address-level2" required>
+            <div class="field__error" id="cityError"></div>
+          </div>
+          <div class="field">
+            <label>Você vai precisar de <small>(opcional)</small></label>
+            <div class="toggles">
+              ${Object.entries(catalog.services).map(([k, v]) => `<button type="button" class="toggle ${state.services.includes(k) ? "is-selected" : ""}" data-svc="${k}"><span class="tick">${ICON.check}</span>${esc(v)}</button>`).join("")}
+            </div>
+          </div>
+        </div>
+      </div>
+      ${eqs.length ? `
+      <div class="panel__head section-gap">
+        <h3 class="panel__title" style="font-size:clamp(20px,3.4vw,28px)">Equipamentos <i>de interesse</i></h3>
+        <p class="panel__lead">Opcional. Nossa equipe confirma o que é compatível com cada modelo.</p>
+      </div>
+      <div class="eqs stagger">
         ${eqs.map((e) => `
           <button type="button" class="eq ${state.equipment.includes(e.slug) ? "is-selected" : ""}" data-eq="${esc(e.slug)}" aria-pressed="${state.equipment.includes(e.slug)}">
             <span class="tick">${ICON.check}</span>
@@ -439,24 +372,9 @@ function viewDetails() {
           </button>`).join("")}
       </div>` : ""}
       <div class="card section-gap">
-        <div class="form-grid">
-          <div class="field">
-            <label>Você vai precisar de</label>
-            <div class="toggles">
-              ${Object.entries(catalog.services).map(([k, v]) => `<button type="button" class="toggle ${state.services.includes(k) ? "is-selected" : ""}" data-svc="${k}"><span class="tick">${ICON.check}</span>${esc(v)}</button>`).join("")}
-            </div>
-          </div>
-          <div class="form-grid form-grid--2">
-            <div class="field">
-              <label for="city">Cidade da instalação</label>
-              <input class="input" id="city" placeholder="Ex.: Divinópolis" value="${esc(state.city)}" maxlength="80" autocomplete="address-level2">
-              <small>Entregamos em todo o estado de Minas Gerais.</small>
-            </div>
-            <div class="field">
-              <label for="notes">Observações <small>(opcional)</small></label>
-              <textarea class="input" id="notes" maxlength="1000" placeholder="Tamanho do espaço, prazo, dúvidas…">${esc(state.notes)}</textarea>
-            </div>
-          </div>
+        <div class="field">
+          <label for="notes">Observações <small>(opcional)</small></label>
+          <textarea class="input" id="notes" maxlength="1000" placeholder="Tamanho do espaço, prazo, dúvidas…">${esc(state.notes)}</textarea>
         </div>
       </div>
       <div class="actions">
@@ -479,13 +397,28 @@ function viewDetails() {
     save();
   }));
   const city = document.getElementById("city"), notes = document.getElementById("notes");
-  city.addEventListener("input", () => { state.city = city.value; save(); });
+  const cityError = document.getElementById("cityError");
+  city.addEventListener("input", () => {
+    state.city = city.value;
+    save();
+    if (cityOk(city.value)) { city.classList.remove("is-invalid"); cityError.textContent = ""; }
+  });
   notes.addEventListener("input", () => { state.notes = notes.value; save(); });
-  app.querySelector("[data-back]").addEventListener("click", () => goTo(3));
-  document.getElementById("next").addEventListener("click", () => goTo(5));
+  if (!state.city) setTimeout(() => city.focus({ preventScroll: true }), 400);
+  app.querySelector("[data-back]").addEventListener("click", () => goTo(2));
+  document.getElementById("next").addEventListener("click", () => {
+    if (!cityOk(city.value)) {
+      city.classList.add("is-invalid");
+      cityError.textContent = "Informe a cidade de entrega";
+      city.scrollIntoView({ behavior: "smooth", block: "center" });
+      return city.focus({ preventScroll: true });
+    }
+    state.city = city.value.replace(/\s+/g, " ").trim();
+    goTo(4);
+  });
 }
 
-/* ---------- etapa 5: revisão ---------- */
+/* ---------- etapa 4: revisão ---------- */
 function viewReview() {
   const codes = pickedCodes();
   const eqNames = catalog.equipment.filter((e) => state.equipment.includes(e.slug)).map((e) => e.name);
@@ -493,28 +426,25 @@ function viewReview() {
   app.innerHTML = `
     <section class="panel">
       <div class="panel__head">
-        <div class="panel__eyebrow">Etapa 5 de 5</div>
+        <div class="panel__eyebrow">Etapa 4 de 4</div>
         <h2 class="panel__title">Tudo certo? <i>Confira e envie</i></h2>
         <p class="panel__lead">Ao enviar, você recebe um código de atendimento para falar direto com a nossa consultora.</p>
       </div>
       <div class="review">
         <div class="card">
           <dl>
-            <div><dt>Nome <button class="review__edit" data-go="1">editar</button></dt><dd>${esc(state.client.name)}</dd></div>
-            <div><dt>Nascimento</dt><dd>${esc(state.client.birth)}</dd></div>
-            <div><dt>WhatsApp</dt><dd>${esc(state.client.phone)}</dd></div>
-            ${state.city ? `<div><dt>Cidade</dt><dd>${esc(state.city)}</dd></div>` : ""}
-            ${eqNames.length ? `<div><dt>Opcionais <button class="review__edit" data-go="4">editar</button></dt><dd>${eqNames.map(esc).join(", ")}</dd></div>` : ""}
+            <div><dt>Cidade de entrega <button class="review__edit" data-go="3">editar</button></dt><dd>${esc(state.city)}</dd></div>
             ${svcNames.length ? `<div><dt>Serviços</dt><dd>${svcNames.map(esc).join(", ")}</dd></div>` : ""}
+            ${eqNames.length ? `<div><dt>Equipamentos</dt><dd>${eqNames.map(esc).join(", ")}</dd></div>` : ""}
             ${state.notes ? `<div><dt>Observações</dt><dd style="font-weight:400">${esc(state.notes)}</dd></div>` : ""}
           </dl>
         </div>
         <div class="card">
-          <div class="label-sm" style="margin-bottom:12px">Modelos escolhidos (${codes.length}) <button class="review__edit" data-go="3">editar</button></div>
+          <div class="label-sm" style="margin-bottom:12px">Modelos escolhidos (${codes.length}) <button class="review__edit" data-go="2">editar</button></div>
           ${codes.length ? `<div class="picked">${codes.map((c) => {
             const p = byCode(c);
             return `<div class="picked__item"><img src="${media(p.images[0])}" alt=""><div><strong>${esc(p.name)}</strong><span>${esc(catOf(p.category)?.name)} · ${esc(p.subtitle)}${state.picks[c] ? ` · cor ${esc(state.picks[c].toLowerCase())}` : ""}</span></div></div>`;
-          }).join("")}</div>` : `<div class="alert">Você ainda não escolheu nenhum modelo. <button class="review__edit" data-go="3">Escolher agora</button></div>`}
+          }).join("")}</div>` : `<div class="alert">Você ainda não escolheu nenhum modelo. <button class="review__edit" data-go="2">Escolher agora</button></div>`}
         </div>
       </div>
       <div id="sendError"></div>
@@ -525,7 +455,7 @@ function viewReview() {
     </section>`;
 
   app.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => goTo(+b.dataset.go)));
-  app.querySelector("[data-back]").addEventListener("click", () => goTo(4));
+  app.querySelector("[data-back]").addEventListener("click", () => goTo(3));
   document.getElementById("send").addEventListener("click", submit);
 }
 
@@ -540,9 +470,6 @@ async function submit() {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        name: state.client.name,
-        birth_date: birthIso(state.client.birth),
-        phone: state.client.phone,
         categories: state.categories,
         items: pickedCodes().map((code) => ({ code, color: state.picks[code] })),
         equipment: state.equipment,
@@ -551,13 +478,12 @@ async function submit() {
         notes: state.notes,
         seller: catalog.seller?.slug || "",
         origin: params.get("origem") || params.get("utm_source") || "",
-        website: state.hp || "",
       }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || "Não foi possível enviar agora.");
     state.result = data;
-    goTo(6);
+    goTo(5);
   } catch (e) {
     errBox.innerHTML = `<div class="alert">${esc(e.message)} Tente novamente em instantes.</div>`;
     btn.disabled = false;
@@ -569,12 +495,11 @@ async function submit() {
 function viewDone() {
   const r = state.result;
   if (!r) return goTo(1, { push: false });
-  const first = esc(state.client.name.split(" ")[0]);
   app.innerHTML = `
     <section class="panel">
       <div class="card done">
         <div class="done__icon">${ICON.check}</div>
-        <h2 class="panel__title">Pronto, ${first}! <i>Recebemos seu pedido.</i></h2>
+        <h2 class="panel__title">Pronto! <i>Recebemos seu pedido.</i></h2>
         <div class="code-box">
           <small>Seu código de atendimento</small>
           <strong id="code">${esc(r.code)}</strong>
@@ -583,7 +508,7 @@ function viewDone() {
         ${r.whatsapp_url ? `
           <p>Agora é só enviar para ${r.seller ? `<strong>${esc(r.seller)}</strong>` : "a nossa consultora"} pelo WhatsApp. Ela já vai receber seus modelos e seguir com o orçamento.</p>
           <a class="btn btn--wa" href="${esc(r.whatsapp_url)}" target="_blank" rel="noopener">${ICON.wa} Enviar código no WhatsApp</a>
-        ` : `<p>Guarde esse código. Nossa consultora vai entrar em contato pelo seu WhatsApp para seguir com o orçamento.</p>`}
+        ` : `<p>Envie esse código para a nossa consultora no WhatsApp para seguir com o orçamento.</p>`}
         <div class="actions" style="justify-content:center">
           <button class="btn btn--ghost" type="button" id="restart">Fazer um novo orçamento</button>
         </div>
@@ -594,9 +519,8 @@ function viewDone() {
     try { await navigator.clipboard.writeText(r.code); e.currentTarget.querySelector("span").textContent = "Copiado"; } catch {}
   });
   document.getElementById("restart").addEventListener("click", () => {
-    const client = state.client;
-    state = { ...blank(), client };
-    goTo(2);
+    state = { ...blank(), city: state.city };
+    goTo(1);
   });
 }
 
@@ -610,9 +534,9 @@ async function init() {
     return;
   }
   state.categories = state.categories.filter((s) => catOf(s));
-  if (state.result) state.step = 6;
-  else if (state.step > 1 && !birthIso(state.client.birth)) state.step = 1;
-  else if (state.step > 2 && !state.categories.length) state.step = 2;
+  if (state.result) state.step = 5;
+  else if (state.step > 1 && !state.categories.length) state.step = 1;
+  else if (state.step > 3 && !cityOk(state.city)) state.step = 3;
   history.replaceState({ step: state.step }, "", location.pathname + location.search);
   render();
 }

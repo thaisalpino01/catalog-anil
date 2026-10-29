@@ -55,10 +55,7 @@ CREATE TABLE IF NOT EXISTS submissions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   code TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  name TEXT NOT NULL,
-  birth_date TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  city TEXT DEFAULT '',
+  city TEXT NOT NULL,
   categories TEXT DEFAULT '[]',
   items TEXT DEFAULT '[]',
   equipment TEXT DEFAULT '[]',
@@ -72,7 +69,6 @@ CREATE TABLE IF NOT EXISTS submissions (
   ip TEXT DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_submissions_created ON submissions(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_submissions_phone ON submissions(phone);
 `);
 
 const JSON_FIELDS = ["specs", "highlights", "images", "colors", "categories", "items", "equipment", "services"];

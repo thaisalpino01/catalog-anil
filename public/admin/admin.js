@@ -108,12 +108,12 @@ async function viewSubmissions() {
       <div class="stat"><small>Total</small><strong>${total}</strong></div>
     </div>
     <div class="filters">
-      <input class="input" id="q" placeholder="Buscar por código, nome ou telefone" value="${esc(listState.q)}">
+      <input class="input" id="q" placeholder="Buscar por código, cidade ou modelo" value="${esc(listState.q)}">
       <select class="input" id="status"><option value="">Todos os status</option>${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${listState.status === k ? "selected" : ""}>${v}</option>`).join("")}</select>
       ${cat.sellers.length ? `<select class="input" id="seller"><option value="">Todas as vendedoras</option>${cat.sellers.map((s) => `<option value="${esc(s.slug)}" ${listState.seller === s.slug ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>` : ""}
     </div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Código</th><th>Cliente</th><th>Modelos</th><th>Vendedora</th><th>Data</th><th>Status</th></tr></thead>
+      <thead><tr><th>Código</th><th>Cidade de entrega</th><th>Modelos</th><th>Vendedora</th><th>Data</th><th>Status</th></tr></thead>
       <tbody id="rows"><tr><td colspan="6" class="empty">Carregando…</td></tr></tbody>
     </table></div>`;
 
@@ -124,7 +124,7 @@ async function viewSubmissions() {
     document.getElementById("rows").innerHTML = rows.length ? rows.map((s) => `
       <tr data-code="${esc(s.code)}">
         <td><span class="code">${esc(s.code)}</span></td>
-        <td><strong>${esc(s.name)}</strong><div class="muted">${esc(s.phone_formatted)}${s.city ? ` · ${esc(s.city)}` : ""}</div></td>
+        <td><strong>${esc(s.city)}</strong></td>
         <td><div class="thumbs">${s.items.slice(0, 4).map((i) => { const p = productByCode(i.code); return p ? `<img src="${media(p.images[0])}" alt="" title="${esc(i.name)}">` : ""; }).join("")}</div><div class="muted">${s.items.map((i) => esc(i.name)).join(", ")}</div></td>
         <td class="muted">${esc(s.seller_name || "—")}</td>
         <td class="muted">${fmtDate(s.created_at)}</td>
@@ -147,18 +147,14 @@ async function viewSubmission(code) {
     <div class="page-head">
       <div><a href="#/" class="muted">← Orçamentos</a><h1 style="margin-top:6px">${esc(s.code)}</h1><p>Recebido em ${fmtDate(s.created_at)}${s.origin ? ` · origem: ${esc(s.origin)}` : ""}</p></div>
       <div class="row">
-        <a class="btn btn--wa" href="${esc(s.whatsapp_cliente)}" target="_blank" rel="noopener">WhatsApp do cliente</a>
         <button class="btn btn--light" id="copy">Copiar resumo</button>
       </div>
     </div>
     <div class="detail">
       <div class="card">
-        <h3 class="section-title">Cliente</h3>
+        <h3 class="section-title">Pedido</h3>
         <dl class="kv">
-          <dt>Nome</dt><dd>${esc(s.name)}</dd>
-          <dt>Nascimento</dt><dd>${esc(s.birth_date.split("-").reverse().join("/"))}</dd>
-          <dt>WhatsApp</dt><dd>${esc(s.phone_formatted)}</dd>
-          <dt>Cidade</dt><dd>${esc(s.city || "—")}</dd>
+          <dt>Cidade de entrega</dt><dd>${esc(s.city)}</dd>
           <dt>Serviços</dt><dd>${s.services.map((x) => esc(SERVICES[x] || x)).join(", ") || "—"}</dd>
           <dt>Opcionais</dt><dd>${s.equipment.map((e) => esc(e.name)).join(", ") || "—"}</dd>
           <dt>Observações</dt><dd style="font-weight:400">${esc(s.notes || "—")}</dd>

@@ -37,29 +37,10 @@ export function normalizePhone(raw) {
   return "55" + d;
 }
 
-export function formatPhone(p) {
-  const d = String(p || "").replace(/^55/, "");
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return p;
-}
-
-function validateBirth(raw) {
-  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(raw || ""));
-  if (!m) fail("Data de nascimento inválida");
-  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
-  if (d.getUTCDate() !== +m[3]) fail("Data de nascimento inválida");
-  const age = (Date.now() - d.getTime()) / (365.25 * 864e5);
-  if (age < 16 || age > 110) fail("Confira a data de nascimento");
-  return m[0];
-}
-
+// O link não pede dados pessoais: o telefone chega para a vendedora pela própria conversa do WhatsApp.
 export function createSubmission(body, meta) {
-  const name = clean(body.name, 120);
-  if (name.split(" ").filter(Boolean).length < 2) fail("Informe o nome completo");
-  const birth = validateBirth(body.birth_date);
-  const phone = normalizePhone(body.phone);
-  if (!phone) fail("Informe um WhatsApp válido com DDD");
+  const city = clean(body.city, 80);
+  if (city.length < 2) fail("Informe a cidade de entrega");
 
   const activeCats = new Set(all("SELECT slug FROM categories WHERE active = 1").map((c) => c.slug));
   const categories = [...new Set((body.categories || []).map(String))].filter((c) => activeCats.has(c));
@@ -86,9 +67,9 @@ export function createSubmission(body, meta) {
 
   const code = newCode();
   run(
-    `INSERT INTO submissions (code, name, birth_date, phone, city, categories, items, equipment, services, notes, seller, origin, ip)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    code, name, birth, phone, clean(body.city, 80),
+    `INSERT INTO submissions (code, city, categories, items, equipment, services, notes, seller, origin, ip)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    code, city,
     JSON.stringify(categories), JSON.stringify(items), JSON.stringify(equipment), JSON.stringify(services),
     String(body.notes || "").trim().slice(0, 1000), seller, clean(body.origin, 120), meta.ip || "",
   );
@@ -110,14 +91,15 @@ export function adminUrl(code) {
 
 /** Mensagem curta que o cliente envia para a vendedora pelo WhatsApp. */
 export function whatsappMessage(sub) {
-  const first = sub.name.split(" ")[0];
   const lines = [
-    `Olá! Sou ${first} e montei meu orçamento no catálogo da Anil.`,
+    `Olá! Montei meu orçamento no catálogo da Anil.`,
     ``,
     `*Código: ${sub.code}*`,
     ``,
     `Modelos escolhidos:`,
     ...sub.items.map((i) => `• ${i.name}${i.subtitle ? ` (${i.subtitle})` : ""}${i.color ? ` — cor ${i.color.toLowerCase()}` : ""}`),
+    ``,
+    `Entrega em: ${sub.city}`,
   ];
   if (sub.equipment.length) lines.push(``, `Opcionais: ${sub.equipment.map((e) => e.name).join(", ")}`);
   return lines.join("\n");
@@ -132,10 +114,7 @@ export function summaryText(sub) {
   const svc = sub.services.map((s) => SERVICES[s] || s);
   return [
     `Orçamento ${sub.code}`,
-    `Cliente: ${sub.name}`,
-    `Nascimento: ${sub.birth_date.split("-").reverse().join("/")}`,
-    `WhatsApp: ${formatPhone(sub.phone)}`,
-    sub.city ? `Cidade: ${sub.city}` : "",
+    `Cidade de entrega: ${sub.city}`,
     `Modelos: ${sub.items.map((i) => `${i.name}${i.color ? ` (${i.color})` : ""}`).join("; ")}`,
     sub.equipment.length ? `Opcionais: ${sub.equipment.map((e) => e.name).join(", ")}` : "",
     svc.length ? `Serviços: ${svc.join(", ")}` : "",
@@ -150,13 +129,7 @@ export async function notifyWebhook(sub) {
     event: "orcamento.criado",
     codigo: sub.code,
     criado_em: sub.created_at,
-    cliente: {
-      nome: sub.name,
-      data_nascimento: sub.birth_date,
-      telefone: sub.phone,
-      telefone_formatado: formatPhone(sub.phone),
-      cidade: sub.city,
-    },
+    cidade_entrega: sub.city,
     categorias: sub.categories,
     modelos: sub.items,
     opcionais: sub.equipment,

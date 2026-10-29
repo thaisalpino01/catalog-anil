@@ -1,24 +1,23 @@
 # Catálogo Anil — pré-orçamento online
 
-Link que o pré-atendimento da Anil Piscinas e Spas envia ao cliente. O cliente:
+Link que o pré-atendimento da Anil Piscinas e Spas envia ao cliente. O link **não pede dados pessoais** — só modelo e cidade de entrega. O cliente:
 
-1. Informa **nome completo, data de nascimento e WhatsApp**;
-2. Escolhe o que procura (**Piscinas, Linha Infantil, Spas, Banheiras**);
-3. Vê **somente os modelos** das categorias marcadas, com fotos, planta, medidas, ficha técnica e cor;
-4. Marca opcionais (bomba, filtro, ozônio, aquecimento solar…), serviços, cidade e observações;
-5. Envia e recebe um **código de atendimento** (ex.: `ANL-7K3PQ`), com botão para mandar o código e os modelos no **WhatsApp da vendedora**.
+1. Escolhe o que procura (**Piscinas, Linha Infantil, Spas, Banheiras**);
+2. Vê **somente os modelos** das categorias marcadas, com fotos, planta, medidas, ficha técnica e cor;
+3. Informa a **cidade de entrega** (obrigatória) e, se quiser, serviços, equipamentos e observações;
+4. Envia e recebe um **código de atendimento** (ex.: `ANL-7K3PQ`), com botão para mandar o código e os modelos no **WhatsApp da vendedora**.
 
-A vendedora abre o painel `/admin`, busca pelo código e já entra na fase de venda com tudo preenchido.
+O telefone e o nome chegam para a vendedora pela própria conversa do WhatsApp. Ela abre o painel `/admin`, busca pelo código e já entra na fase de venda.
 
 ## Painel `/admin`
 
-- **Orçamentos**: busca por código, nome ou telefone; status (novo, em atendimento, convertido, perdido); anotações internas; exportação CSV; botão para abrir o WhatsApp do cliente.
+- **Orçamentos**: busca por código, cidade ou modelo; status (novo, em atendimento, convertido, perdido); anotações internas; exportação CSV.
 - **Produtos / Categorias / Opcionais**: editar textos, medidas, fotos (upload), planta, cores, ordem e visibilidade.
 - **Vendedoras e links**: cada vendedora tem um link próprio (`/?v=ana`). O cliente que entra por ele envia o código direto para o WhatsApp dela. Sem `?v=`, vai para `WHATSAPP_PADRAO`.
 
 ## Integração com n8n (opcional)
 
-Com `N8N_WEBHOOK_URL` definido, cada orçamento gera um `POST` JSON (`event: "orcamento.criado"`) com cliente, modelos, opcionais, serviços, vendedora, um `resumo` em texto e `link_painel`. Se `N8N_WEBHOOK_TOKEN` estiver definido, vai no cabeçalho `Authorization: Bearer <token>`.
+Com `N8N_WEBHOOK_URL` definido, cada orçamento gera um `POST` JSON (`event: "orcamento.criado"`) com cidade de entrega, modelos, opcionais, serviços, vendedora, um `resumo` em texto e `link_painel`. Se `N8N_WEBHOOK_TOKEN` estiver definido, vai no cabeçalho `Authorization: Bearer <token>`.
 
 ## Variáveis de ambiente
 

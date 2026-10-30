@@ -21,6 +21,16 @@ O telefone e o nome chegam para a vendedora pela própria conversa do WhatsApp. 
 
 Com `N8N_WEBHOOK_URL` definido, cada orçamento gera um `POST` JSON (`event: "orcamento.criado"`) com cidade de entrega, modelos, opcionais, serviços, vendedora, um `resumo` em texto e `link_painel`. Se `N8N_WEBHOOK_TOKEN` estiver definido, vai no cabeçalho `Authorization: Bearer <token>`.
 
+## Preços do sistema da Anil (sincronização a cada 2h)
+
+O fluxo do n8n em [`deploy/n8n-sincronizar-precos.json`](deploy/n8n-sincronizar-precos.json) roda a cada 2 horas: busca a API de preços da Anil (que só responde ao IP do servidor do n8n) e envia a lista para `POST /api/integracoes/precos` com `Authorization: Bearer <PRICE_SYNC_TOKEN>`.
+
+- O preço é atualizado no produto cujo **código é igual à referência** do sistema (`MGP-…`, `SPA-…`, `MGB-…`).
+- Produtos sem referência na API mantêm o preço do painel; referências da API sem produto no catálogo são ignoradas.
+- O resultado da última sincronização aparece no painel, em **Produtos**.
+
+Para importar: n8n → Workflows → Import from file → trocar `COLE_AQUI_O_PRICE_SYNC_TOKEN` pelo mesmo valor de `PRICE_SYNC_TOKEN` da stack → ativar.
+
 ## Variáveis de ambiente
 
 | Variável | Uso |
@@ -30,6 +40,7 @@ Com `N8N_WEBHOOK_URL` definido, cada orçamento gera um `POST` JSON (`event: "or
 | `SESSION_SECRET` | Texto aleatório para assinar a sessão do painel |
 | `WHATSAPP_PADRAO` | WhatsApp (55 + DDD + número) quando o link não indica vendedora |
 | `N8N_WEBHOOK_URL` / `N8N_WEBHOOK_TOKEN` | Webhook opcional |
+| `PRICE_SYNC_TOKEN` | Token que o n8n usa para enviar os preços do sistema |
 | `CODE_PREFIX` | Prefixo do código (padrão `ANL`) |
 | `DATA_DIR` | Pasta do banco SQLite e das imagens (padrão `/data` no container) |
 

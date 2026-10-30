@@ -19,6 +19,7 @@ services:
       - WHATSAPP_PADRAO=553799261553
       - N8N_WEBHOOK_URL=
       - N8N_WEBHOOK_TOKEN=
+      - PRICE_SYNC_TOKEN=TROCAR
       - CODE_PREFIX=ANL
       - TZ=America/Sao_Paulo
     deploy:

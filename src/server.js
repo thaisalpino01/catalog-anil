@@ -6,7 +6,8 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { config } from "./config.js";
 import { all, get, run, tx } from "./db.js";
-import { seedIfEmpty, backfillPricesOnce } from "./seed.js";
+import { seedIfEmpty, backfillPricesOnce, renameCodesOnce } from "./seed.js";
+import { requireSyncToken, syncPrices, lastSync } from "./prices.js";
 import { checkCredentials, issueSession, clearSession, isAuthenticated, requireAdmin } from "./auth.js";
 import {
   createSubmission, getSubmission, notifyWebhook, sellerFor, whatsappMessage, whatsappLink,
@@ -15,6 +16,7 @@ import {
 
 seedIfEmpty();
 backfillPricesOnce();
+renameCodesOnce();
 
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const app = express();
@@ -82,6 +84,14 @@ app.post("/api/orcamentos", rateLimit({ windowMs: 10 * 60 * 1000, max: 15 }), as
     whatsapp_url: whatsappLink(seller.whatsapp, message),
   });
 }));
+
+/* ---------- integração: preços do sistema da Anil (enviados pelo n8n) ---------- */
+app.post("/api/integracoes/precos", rateLimit({ windowMs: 60 * 1000, max: 20 }), requireSyncToken, (req, res) => {
+  const body = req.body;
+  const result = syncPrices(Array.isArray(body) ? body : body?.items);
+  console.log(`[precos] ${result.updated} atualizados de ${result.received} recebidos`);
+  res.json(result);
+});
 
 app.use("/media", express.static(config.mediaDir, { maxAge: "7d", fallthrough: false }));
 
@@ -190,7 +200,7 @@ admin.get("/catalogo", (req, res) => {
     products: all("SELECT * FROM products ORDER BY category, sort, length, name"),
     equipment: all("SELECT * FROM equipment ORDER BY sort, name"),
     sellers: all("SELECT * FROM sellers ORDER BY name"),
-    settings: { publicUrl: config.publicUrl, defaultWhatsapp: config.defaultWhatsapp, webhook: !!config.webhookUrl },
+    settings: { publicUrl: config.publicUrl, defaultWhatsapp: config.defaultWhatsapp, webhook: !!config.webhookUrl, priceSync: lastSync() },
   });
 });
 

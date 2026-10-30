@@ -57,15 +57,16 @@ const pickedCodes = () => Object.keys(state.picks).filter((c) => byCode(c));
 
 const cityOk = (v) => String(v || "").trim().length >= 2;
 
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
-const money = (v) => (v == null ? "sob consulta" : BRL.format(v));
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const BRL_CENTS = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const money = (v) => (v == null ? "sob consulta" : (Number.isInteger(v) ? BRL : BRL_CENTS).format(v));
 
 /** Itens escolhidos com preço, na mesma regra do servidor: soma só o que tem valor. */
 function estimate() {
   const items = pickedCodes().map((c) => byCode(c));
   const eqs = catalog.equipment.filter((e) => state.equipment.includes(e.slug));
   const priced = [...items, ...eqs].filter((x) => x.price != null);
-  const total = priced.length ? priced.reduce((t, x) => t + x.price, 0) : null;
+  const total = priced.length ? Math.round(priced.reduce((t, x) => t + x.price, 0) * 100) / 100 : null;
   const unpriced = [...items, ...eqs].length - priced.length;
   return { items, eqs, total, unpriced };
 }

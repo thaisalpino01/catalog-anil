@@ -40,9 +40,31 @@ export function seedIfEmpty() {
         e.slug, e.name, e.description || "", e.image || "", JSON.stringify(e.categories || []), e.price ?? null, i + 1,
       );
     });
-    run("INSERT OR REPLACE INTO meta (key, value) VALUES ('prices-v1', 'seed')");
+    run("INSERT OR REPLACE INTO meta (key, value) VALUES ('prices-v1', 'seed'), ('codes-v1', 'seed')");
   });
   console.log(`[seed] Catálogo inicial carregado: ${data.products.length} produtos.`);
+}
+
+// Códigos provisórios do primeiro deploy -> referências do sistema da Anil (as que a API de preços usa)
+const REFERENCE_CODES = {
+  "SPA-01": "SPA-00180", "SPA-02": "SPA-00182", "SPA-03": "SPA-00191", "SPA-04": "SPA-00199",
+  "SPA-05": "SPA-00200", "SPA-06": "SPA-00210", "SPA-07": "SPA-00221", "SPA-08": "SPA-00265",
+  "SPA-09": "SPA-00225", "SPA-10": "SPA-00240", "SPA-11": "SPA-00267", "SPA-12": "SPA-00305",
+  "SPA-13": "SPA-00273", "BAN-01": "MGB-LUXO1", "BAN-02": "MGB-00148", "BAN-07": "MGB-00181",
+};
+
+/** Troca, uma única vez, os códigos provisórios pelas referências do sistema (sem tocar em códigos já editados). */
+export function renameCodesOnce() {
+  if (get("SELECT value FROM meta WHERE key = 'codes-v1'")) return;
+  let renamed = 0;
+  tx(() => {
+    for (const [from, to] of Object.entries(REFERENCE_CODES)) {
+      if (get("SELECT 1 AS x FROM products WHERE code = ?", to)) continue;
+      renamed += Number(run("UPDATE products SET code = ? WHERE code = ?", to, from).changes);
+    }
+    run("INSERT OR REPLACE INTO meta (key, value) VALUES ('codes-v1', ?)", new Date().toISOString());
+  });
+  if (renamed) console.log(`[seed] ${renamed} códigos trocados pelas referências do sistema.`);
 }
 
 /**

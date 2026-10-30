@@ -23,6 +23,8 @@ export const config = {
   defaultWhatsapp: (env.WHATSAPP_PADRAO || "").replace(/\D/g, ""),
   webhookUrl: env.N8N_WEBHOOK_URL || "",
   webhookToken: env.N8N_WEBHOOK_TOKEN || "",
+  // token que o n8n usa para enviar os preços do sistema (POST /api/integracoes/precos)
+  priceSyncToken: env.PRICE_SYNC_TOKEN || "",
   codePrefix: (env.CODE_PREFIX || "ANL").toUpperCase(),
   trustProxy: env.TRUST_PROXY !== "false",
 };

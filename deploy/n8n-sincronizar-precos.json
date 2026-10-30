@@ -1,0 +1,92 @@
+{
+  "name": "Anil | Catálogo – sincronizar preços (a cada 2h)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "id": "5b0c6c1e-6a51-4c8e-9a3b-2f2f8f0a0001",
+      "name": "A cada 2 horas",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://xvvulfrke5l4kfjg4m3ui22lri0intkc.lambda-url.sa-east-1.on.aws/",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5b0c6c1e-6a51-4c8e-9a3b-2f2f8f0a0002",
+      "name": "Buscar preços no sistema",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [240, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// A API devolve uma lista; o n8n transforma cada linha em um item. Junta tudo em uma lista só.\nconst items = $input.all().map((i) => i.json).filter((r) => r && r.reference);\nif (!items.length) throw new Error('A API de preços não devolveu nenhum item');\nreturn [{ json: { items } }];"
+      },
+      "id": "5b0c6c1e-6a51-4c8e-9a3b-2f2f8f0a0003",
+      "name": "Juntar lista",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://catalogo.anilpiscinas.com.br/api/integracoes/precos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer COLE_AQUI_O_PRICE_SYNC_TOKEN"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ items: $json.items }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "5b0c6c1e-6a51-4c8e-9a3b-2f2f8f0a0004",
+      "name": "Enviar para o catálogo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [720, 0],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "A cada 2 horas": {
+      "main": [[{ "node": "Buscar preços no sistema", "type": "main", "index": 0 }]]
+    },
+    "Buscar preços no sistema": {
+      "main": [[{ "node": "Juntar lista", "type": "main", "index": 0 }]]
+    },
+    "Juntar lista": {
+      "main": [[{ "node": "Enviar para o catálogo", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

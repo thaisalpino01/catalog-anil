@@ -33,13 +33,14 @@ const fail = (msg) => { throw new ValidationError(msg); };
 
 const clean = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
 
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
-export const money = (v) => (v == null ? "sob consulta" : BRL.format(v));
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const BRL_CENTS = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+export const money = (v) => (v == null ? "sob consulta" : (Number.isInteger(v) ? BRL : BRL_CENTS).format(v));
 
 /** Soma só o que tem preço; frete, instalação e itens sem preço a consultora confirma. */
 function estimate(items, equipment) {
   const priced = [...items, ...equipment].filter((x) => x.price != null);
-  return priced.length ? priced.reduce((t, x) => t + x.price, 0) : null;
+  return priced.length ? Math.round(priced.reduce((t, x) => t + x.price, 0) * 100) / 100 : null;
 }
 
 /** Normaliza telefone BR para 55 + DDD + número. */

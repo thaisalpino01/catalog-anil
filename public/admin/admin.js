@@ -10,8 +10,9 @@ const STATUS = {
 };
 const SERVICES = { entrega: "Entrega", instalacao: "Instalação no local", orientacao: "Orientação técnica" };
 const DELIVERY = { entrega: "Entrega no endereço", retirada: "Retirada na fábrica (Divinópolis)" };
-const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 2 });
-const money = (v) => (v == null ? "sob consulta" : BRL.format(v));
+const BRL = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const BRL_CENTS = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const money = (v) => (v == null ? "sob consulta" : (Number.isInteger(v) ? BRL : BRL_CENTS).format(v));
 
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const media = (f) => (f ? `/media/${encodeURIComponent(f)}` : "");
@@ -250,6 +251,19 @@ function openModal(html) {
 }
 
 /* ---------- produtos ---------- */
+/** Resultado da última sincronização de preços vinda do sistema da Anil (via n8n). */
+function syncBox(s) {
+  if (!s) {
+    return `<div class="card sync"><strong>Preços do sistema:</strong> nenhuma sincronização recebida ainda. Os preços abaixo são os cadastrados no painel.</div>`;
+  }
+  return `<div class="card sync">
+    <strong>Preços sincronizados com o sistema em ${fmtDate(s.at)}</strong> — ${s.updated} ${s.updated === 1 ? "preço alterado" : "preços alterados"} de ${s.received} recebidos.
+    O código do produto precisa ser igual à referência do sistema para o preço ser atualizado.
+    ${s.missing.length ? `<div class="muted">Sem preço no sistema (mantêm o valor do painel): ${s.missing.map(esc).join(", ")}</div>` : ""}
+    ${s.unknown.length ? `<div class="muted">Referências do sistema sem produto no catálogo: ${s.unknown.map(esc).join(", ")}</div>` : ""}
+  </div>`;
+}
+
 async function viewProducts() {
   await loadCatalog(true);
   view.innerHTML = `
@@ -257,6 +271,7 @@ async function viewProducts() {
       <div><h1>Produtos</h1><p>Clique em um produto para editar fotos, medidas e disponibilidade.</p></div>
       <button class="btn btn--primary" id="new">Novo produto</button>
     </div>
+    ${syncBox(cat.settings.priceSync)}
     ${cat.categories.map((c) => {
       const ps = cat.products.filter((p) => p.category === c.slug);
       return `<section class="cat-block">
@@ -279,7 +294,7 @@ function editProduct(p) {
     <form>
       <h2>${isNew ? "Novo produto" : `Editar ${esc(p.code)}`}</h2>
       <div class="grid3">
-        <label class="field">Código<input class="input" name="code" value="${esc(p.code)}" required></label>
+        <label class="field">Código <span class="hint">= referência no sistema</span><input class="input" name="code" value="${esc(p.code)}" required></label>
         <label class="field">Categoria<select class="input" name="category">${cat.categories.map((c) => `<option value="${esc(c.slug)}" ${c.slug === p.category ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select></label>
         <label class="field">Ordem<input class="input" name="sort" type="number" value="${esc(p.sort)}"></label>
       </div>
